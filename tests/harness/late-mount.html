@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>late-mounting SPA form</title>
+  </head>
+  <body>
+    <script src="/event-log.js"></script>
+    <h1>Loading application…</h1>
+    <div id="root"></div>
+    <script>
+      // Simulates Workday/Ashby-style late rendering: the form appears after 600 ms.
+      setTimeout(() => {
+        document.getElementById('root').innerHTML = `
+          <form>
+            <label for="first_name">First name</label><input id="first_name" />
+            <label for="last_name">Last name</label><input id="last_name" />
+            <label for="email">Email</label><input id="email" type="email" />
+          </form>`;
+      }, 600);
+    </script>
+  </body>
+</html>

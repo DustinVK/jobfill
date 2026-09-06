@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { injectContentBundle } from './helpers.js';
 
-test('content bundle mounts its overlay chip on an arbitrary page', async ({ page }) => {
+test('content bundle mounts its overlay on an arbitrary page', async ({ page }) => {
   await page.goto('/blank.html');
   await injectContentBundle(page);
 
@@ -12,10 +12,10 @@ test('content bundle mounts its overlay chip on an arbitrary page', async ({ pag
   );
   expect(shadowRootIsClosed).toBe(true);
 
-  const chipText = await page.evaluate(
-    () => window.__jobfillHarness?.shadow.querySelector('.jf-chip')?.textContent ?? null,
+  const barPresent = await page.evaluate(() =>
+    Boolean(window.__jobfillHarness?.shadow.querySelector('.jf-bar')),
   );
-  expect(chipText).toContain('jobfill');
+  expect(barPresent).toBe(true);
 });
 
 test('re-injection is idempotent — one overlay host, one session', async ({ page }) => {

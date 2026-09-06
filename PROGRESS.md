@@ -1,6 +1,6 @@
 # Progress
 
-Status: rung 2 — classifier+fillers done, overlay in progress | Last green checkpoint: 9afebdb 01:12
+Status: rung 2 — complete, awaiting review | Last green checkpoint: (this commit) 01:20
 
 This file is the re-anchor point after context loss. It is written for a reader with no memory
 of the session: what is true in the repo right now, what was decided, and what is not done.
@@ -41,13 +41,27 @@ of the session: what is true in the repo right now, what was decided, and what i
 
 ### Rung 2 — Fill engine core
 
-- [ ] scan / label / classify + Appendix B rules as data
-- [ ] classifier corpus ≥ 40 fixtures incl. negatives + anti-pattern guard
-- [ ] fillers: text, select, radio-group, checkbox
-- [ ] overlay: fill bar, badges, popover, palette, fill-all, review, undo
-- [ ] safety: deny-list, sensitive locks, no auto-submit
-- [ ] harness pages: plain, React, late-mount, shadow DOM, iframe
-- [ ] **DoD-2**
+- [x] scan.ts (§7.1 incl. shadow traversal w/ openOrClosedShadowRoot fallback, hidden-file-input
+      exception, MutationObserver settle + generations), label.ts (§7.2, shadow-root-aware),
+      classify.ts (§7.3 weights/tiers/rationalization/min-signal/question matching), Appendix B
+      rules as data in src/shared/rules/
+- [x] classifier corpus: 52 fixtures, 104 assertions, per-key report at fixtures/report.md
+      (snapshot-gated), negatives + anti-pattern guard covered
+- [x] fillers: text (native setter + input/change/blur), select, radio-group, checkbox,
+      contenteditable; combobox = honest text-entry w/ read-back; listbox-button = copy fallback
+      (both drop to suggest, never pretend — Rung 4 has the real drivers)
+- [x] overlay in closed shadow root: fill bar (version/Fill N/Review M/undo/close), badges
+      (auto/suggest/sensitive/filled/amber-unverified), popover (editable preview, Enter fills,
+      ↑/↓ variant cycling, type-to-filter, map… to in-memory site-memory stub), palette (fuzzy
+      search, Enter fills / Shift+Enter copies, quick-save via answers.quickSave), review stepping,
+      fill-all, undo (§7.8 snapshots, first-touch-wins)
+- [x] safety live: §7.9 deny-list (corpus-tested), sensitive lock w/ explicit confirm, no
+      auto-submit (e2e asserts window.__submitted stays false), min-signal guard
+- [x] harness pages: plain HTML · real React 18 controlled (bundled, not CDN) · late-mount 600ms ·
+      open-shadow-DOM · same-origin iframe — all with page-side __eventLog
+- [x] **DoD-2:** verify green · 20 e2e green (11 fill-engine: values land, page listeners fire,
+      React state mirror updates, undo restores incl. React, deny-list holds, late-mount rescan,
+      shadow fill, iframe fill, palette fill) · corpus green with committed per-key report
 
 ### Rung 3 — File attach
 
@@ -146,6 +160,22 @@ of the session: what is true in the repo right now, what was decided, and what i
 - **2026-09-06 00:45 — Loose vs. strict types.** Interchange documents get their own `Loose*`
   types (ids optional) in types.ts rather than reusing vault types with casts — the importer is
   the single materialization point (`interchange.ts`).
+- **2026-09-06 01:14 — devDependencies `react` + `react-dom`** (justification per CLAUDE.md):
+  the plan's harness explicitly requires a REAL React 18 controlled form ("real React via CDN or
+  bundled fixture"); bundled beats CDN because e2e must run offline. Never shipped — dist-harness
+  only. A tests/harness/tsconfig.json pins jsxImportSource=react there (esbuild lets the nearest
+  tsconfig override build options — that bug cost 20 minutes: Preact vnodes fed to react-dom).
+- **2026-09-06 01:15 — `answers.quickSave` protocol message.** The palette's "Save '…' as"
+  (SPEC §3.6) needs a content-script write path, but rung-1 review P1-8 removed vault access from
+  web-origin senders. Resolution: one deliberately narrow unprivileged message that appends a
+  single custom non-sensitive answers-bank entry (length-capped), nothing else.
+- **2026-09-06 01:15 — listbox-button fills fall back to clipboard-copy with a toast**; combobox
+  gets best-effort text entry with read-back verification. Neither pretends to drive the widget
+  (plan rung-2 scope note); real drivers are Rung 4 optional.
+- **2026-09-06 01:16 — Palette shortcut is a page-level keydown listener** (Alt+Shift+Space)
+  once the overlay is active. The browser.commands `open-palette` command injects the bundle but
+  cannot tell it "open the palette" without background→content messaging (tabs.sendMessage is not
+  in the adapter surface yet) — parked for Rung 4/M4.
 - **2026-09-06 00:58 — Options save model is explicit-Save with section-level dirty tracking**,
   not autosave: predictable writes through `vault.patch`, and the e2e can assert the "Saved."
   status deterministically.

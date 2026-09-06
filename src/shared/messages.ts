@@ -106,6 +106,11 @@ export interface ProtocolMap {
     req: { q: string; scope?: 'all' | 'answers'; limit?: number };
     res: { results: SearchResult[] };
   };
+  /**
+   * Palette quick-save (SPEC §3.6 "Save '…' as"). Deliberately narrow — the only write
+   * available to content scripts: appends ONE custom, non-sensitive answers-bank entry.
+   */
+  'answers.quickSave': { req: { question: string; value: string }; res: { id: string } };
 
   'file.list': { req: NoPayload; res: { files: StoredFile[] } };
   'file.add': {

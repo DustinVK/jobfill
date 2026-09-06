@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>shadow DOM form</title>
+  </head>
+  <body>
+    <script src="/event-log.js"></script>
+    <h1>Web-component application form</h1>
+    <div id="host"></div>
+    <script>
+      const host = document.getElementById('host');
+      const root = host.attachShadow({ mode: 'open' });
+      root.innerHTML = `
+        <form>
+          <label for="s-first">First name</label><input id="s-first" />
+          <label for="s-last">Last name</label><input id="s-last" />
+          <label for="s-email">Email</label><input id="s-email" type="email" />
+        </form>`;
+      // Shadow events don't bubble to document listeners with composed:false targets intact;
+      // log inside the root so tests can still observe them.
+      for (const type of ['input', 'change']) {
+        root.addEventListener(
+          type,
+          (e) => {
+            window.__eventLog.push({ type, target: e.target.id || '?', value: e.target.value });
+          },
+          true,
+        );
+      }
+    </script>
+  </body>
+</html>

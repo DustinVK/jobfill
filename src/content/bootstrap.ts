@@ -1,5 +1,5 @@
 /**
- * Content-bundle bootstrap: idempotent activation, overlay mount.
+ * Content-bundle bootstrap: idempotent activation, session + overlay wiring.
  *
  * Injection can happen many times on one page (SPEC §8.4: re-invoke = re-scan + reopen).
  * Each `scripting.executeScript` runs the bundle in a fresh lexical scope but the *same*
@@ -8,13 +8,18 @@
 import type { MessageTransport } from '../shared/adapters/types.js';
 import { ProtocolClient } from '../shared/messages.js';
 import { createOverlayRoot, overlayLayer, type OverlayRoot } from './overlay/root.js';
+import { OverlayUI } from './overlay/ui.js';
+import { FillSession } from './session.js';
+import { observeAndRescan, type ScanScheduler } from './scan.js';
 
 const GUARD = '__jobfillSession';
 
 export interface ContentSession {
   client: ProtocolClient;
   overlay: OverlayRoot;
-  /** Re-invoked while already active. TODO(rung 2): trigger a re-scan; today it only re-shows. */
+  session: FillSession;
+  ui: OverlayUI;
+  /** Re-invoked while already active: re-scan and re-show. */
   activate(): void;
   teardown(): void;
 }
@@ -45,30 +50,39 @@ export function bootstrap(options: BootstrapOptions): ContentSession {
   const client = new ProtocolClient(options.transport);
   const overlay = createOverlayRoot(doc);
   const layer = overlayLayer(overlay.shadow);
+  const session = new FillSession(client);
 
-  const chip = doc.createElement('button');
-  chip.type = 'button';
-  chip.className = 'jf-chip';
-  chip.setAttribute('data-jobfill-chip', '');
-  const dot = doc.createElement('span');
-  dot.className = 'jf-chip-dot';
-  const label = doc.createElement('span');
-  label.textContent = 'jobfill';
-  chip.append(dot, label);
-  layer.append(chip);
+  const schedulerRef: { current: ScanScheduler | undefined } = { current: undefined };
 
-  const session: ContentSession = {
+  const ui = new OverlayUI({
+    layer,
+    shadow: overlay.shadow,
+    session,
+    client,
+    onClose: () => contentSession.teardown(),
+  });
+
+  const contentSession: ContentSession = {
     client,
     overlay,
+    session,
+    ui,
     activate() {
-      chip.hidden = false;
+      void session.refresh(doc);
     },
     teardown() {
+      schedulerRef.current?.stop();
+      ui.destroy();
       overlay.destroy();
       delete (scope as GuardedGlobal)[GUARD];
     },
   };
 
-  (scope as GuardedGlobal)[GUARD] = session;
-  return session;
+  (scope as GuardedGlobal)[GUARD] = contentSession;
+
+  // First scan + SPA readiness: debounced MutationObserver re-scans (SPEC §7.1).
+  void session.refresh(doc);
+  schedulerRef.current = observeAndRescan(doc, () => void session.refresh(doc));
+
+  return contentSession;
 }

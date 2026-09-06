@@ -174,10 +174,12 @@ export function fillRadioGroup(
 }
 
 function radioLabel(radio: HTMLInputElement): string {
-  const doc = radio.ownerDocument;
+  // Shadow-aware: label[for] must resolve within the radio's own tree.
+  const root = radio.getRootNode();
+  const scope: ParentNode = root instanceof ShadowRoot ? root : radio.ownerDocument;
   const id = radio.getAttribute('id');
   if (id) {
-    const label = doc.querySelector(`label[for="${id.replace(/"/g, '\\"')}"]`);
+    const label = scope.querySelector(`label[for="${id.replace(/"/g, '\\"')}"]`);
     if (label?.textContent) return label.textContent.trim();
   }
   const wrapping = radio.closest('label');

@@ -2,8 +2,8 @@
  * e2e harness entrypoint (never shipped; built to dist-harness/).
  *
  * Same content bundle as production, wired to the in-memory transport with an in-process
- * background router behind it. This is what makes scanner → classifier → overlay → fillers
- * testable in a plain page without a loaded extension (OVERNIGHT_PLAN §7).
+ * background router behind it, seeded with the sample vault. This exercises scanner →
+ * classifier → overlay → fillers exactly as shipped (OVERNIGHT_PLAN §7).
  *
  * It also publishes `window.__jobfillHarness` so tests can reach *inside* the closed shadow
  * root. That hook exists only here — the production bundle keeps the root genuinely closed
@@ -18,7 +18,11 @@ import {
   createMemoryStorage,
 } from '../shared/adapters/memory.js';
 import type { BackgroundEnv } from '../shared/adapters/types.js';
+import type { InterchangeDocument } from '../shared/types.js';
+import { createEmptyVault } from '../shared/vault.js';
+import { mergeAdd } from '../shared/interchange.js';
 import { bootstrap, type ContentSession } from './bootstrap.js';
+import sampleImport from '../../ai/examples/sample-import.json';
 
 export interface HarnessHandle {
   session: ContentSession;
@@ -29,6 +33,8 @@ export interface HarnessHandle {
 declare global {
   interface Window {
     __jobfillHarness?: HarnessHandle;
+    /** Harness pages record page-side events here so tests assert observable effects. */
+    __eventLog?: { type: string; target: string; value?: string }[];
   }
 }
 
@@ -43,9 +49,22 @@ if (window.__jobfillHarness) {
 
 function main(): void {
   const channel = new MemoryChannel({ tabId: 1, frameId: 0, origin: location.origin });
+  const storage = createMemoryStorage();
+  const blobs = new MemoryBlobStore();
+
+  // Seed the vault with the sample import so compose has real data behind it.
+  const seeded = mergeAdd(createEmptyVault(), sampleImport as unknown as InterchangeDocument);
+  void storage.local.set('vault', { v: 1, enc: 'none', data: seeded.vault });
+  for (const payload of seeded.files) {
+    void blobs.put(
+      payload.record.bytesRef,
+      new Blob([payload.bytes as unknown as BlobPart], { type: payload.record.mime }),
+    );
+  }
+
   const env: BackgroundEnv = {
-    storage: createMemoryStorage(),
-    blobs: new MemoryBlobStore(),
+    storage,
+    blobs,
     server: channel,
     scripting: createMemoryScripting(),
     runtime: createMemoryRuntime(),

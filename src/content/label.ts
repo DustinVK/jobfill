@@ -19,12 +19,29 @@ function textOf(el: Element | null): string {
   return el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 }
 
+/**
+ * Query root for id/label lookups: the element's own tree (shadow root when inside one).
+ * `ownerDocument` queries cannot see into shadow roots (SPEC §7.1 traversal).
+ */
+function rootOf(el: Element): ParentNode {
+  const root = el.getRootNode();
+  return root instanceof ShadowRoot ? root : el.ownerDocument;
+}
+
+function byId(el: Element, id: string): Element | null {
+  return rootOf(el).querySelector(`#${cssEscape(id)}`);
+}
+
+function cssEscape(value: string): string {
+  // CSS.escape is available in Firefox and jsdom; fall back to a conservative escape.
+  const css = (globalThis as { CSS?: { escape?: (v: string) => string } }).CSS;
+  return css?.escape ? css.escape(value) : value.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+}
+
 function labelFor(el: Element): string {
-  const doc = el.ownerDocument;
   const id = el.getAttribute('id');
   if (id) {
-    // CSS.escape is unavailable in some jsdom builds; getElementById + query both work.
-    const explicit = doc.querySelector(`label[for="${id.replace(/"/g, '\\"')}"]`);
+    const explicit = rootOf(el).querySelector(`label[for="${id.replace(/"/g, '\\"')}"]`);
     if (explicit) return textOf(explicit);
   }
   const wrapping = el.closest('label');
@@ -48,10 +65,9 @@ function legendOf(el: Element): string {
 function ariaLabelOf(el: Element): string {
   const labelledby = el.getAttribute('aria-labelledby');
   if (labelledby) {
-    const doc = el.ownerDocument;
     const text = labelledby
       .split(/\s+/)
-      .map((refId) => textOf(doc.getElementById(refId)))
+      .map((refId) => textOf(byId(el, refId)))
       .filter(Boolean)
       .join(' ');
     if (text) return text;
@@ -66,9 +82,8 @@ function nearbyTextOf(el: Element): string {
   // aria-describedby
   const describedby = el.getAttribute('aria-describedby');
   if (describedby) {
-    const doc = el.ownerDocument;
     for (const refId of describedby.split(/\s+/)) {
-      const text = textOf(doc.getElementById(refId));
+      const text = textOf(byId(el, refId));
       if (text) parts.push(text);
     }
   }

@@ -1,0 +1,7 @@
+{
+  "//": "esbuild resolves the NEAREST tsconfig per file and its jsxImportSource overrides build options; the react harness must compile against real React, not the repo-wide Preact setting.",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  }
+}

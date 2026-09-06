@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>plain application form</title>
+    <style>
+      body {
+        font: 15px/1.5 system-ui;
+        max-width: 40rem;
+        margin: 32px auto;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 6px;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="/event-log.js"></script>
+    <h1>Apply — Plain Form Co.</h1>
+    <form id="apply">
+      <label for="first_name">First Name *</label>
+      <input id="first_name" name="first_name" type="text" required />
+      <label for="last_name">Last Name *</label>
+      <input id="last_name" name="last_name" type="text" required />
+      <label for="email">Email *</label>
+      <input id="email" name="email" type="email" required />
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" />
+      <label for="city">City</label>
+      <input id="city" name="city" type="text" />
+      <label for="state">State</label>
+      <input id="state" name="state" type="text" />
+      <label for="zip">ZIP code</label>
+      <input id="zip" name="zip" type="text" />
+      <label for="linkedin">LinkedIn URL</label>
+      <input id="linkedin" name="linkedin" type="url" />
+      <label for="company">Current employer</label>
+      <input id="company" name="company" type="text" />
+      <label for="title">Job title</label>
+      <input id="title" name="title" type="text" />
+      <label for="summary">Describe your responsibilities in your current role</label>
+      <textarea id="summary" name="summary" rows="6"></textarea>
+
+      <fieldset>
+        <legend>
+          Will you now or in the future require sponsorship for employment visa status?
+        </legend>
+        <label
+          ><input type="radio" name="sponsorship" id="sponsor-yes" value="yes" /> Yes, I will
+          require sponsorship now or in the future</label
+        >
+        <label
+          ><input type="radio" name="sponsorship" id="sponsor-no" value="no" /> No, I will not
+          require sponsorship now or in the future</label
+        >
+      </fieldset>
+
+      <label for="authorized">Are you legally authorized to work in the United States?</label>
+      <select id="authorized" name="authorized">
+        <option>Select…</option>
+        <option>Yes</option>
+        <option>No</option>
+      </select>
+
+      <label for="password">Create account password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" />
+
+      <button type="submit" id="submit-btn">Submit application</button>
+    </form>
+    <script>
+      // Track that nothing ever submits: jobfill must NEVER trigger this (SPEC §7.9).
+      window.__submitted = false;
+      document.getElementById('apply').addEventListener('submit', (e) => {
+        e.preventDefault();
+        window.__submitted = true;
+      });
+    </script>
+  </body>
+</html>

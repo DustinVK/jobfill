@@ -160,6 +160,22 @@ async function handle(
       };
     }
 
+    case 'answers.quickSave': {
+      const question = expectNonEmptyString(message.question, 'question').slice(0, 500);
+      const value = expectNonEmptyString(message.value, 'value').slice(0, 5000);
+      const vault = await data.getVault();
+      const entry = {
+        id: crypto.randomUUID(),
+        question,
+        patterns: [],
+        kind: 'text' as const,
+        value,
+        sensitive: false,
+      };
+      await data.patch([{ section: 'answers', value: [...vault.answers, entry] }]);
+      return { id: entry.id };
+    }
+
     case 'snippets.search': {
       const q = typeof message.q === 'string' ? message.q : '';
       const scope = message.scope === 'answers' ? 'answers' : 'all';

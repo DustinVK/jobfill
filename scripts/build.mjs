@@ -75,6 +75,15 @@ const harnessBuilds = [
     outfile: `${root}/dist-harness/options.dev.js`,
     format: 'esm',
   },
+  {
+    ...common,
+    // Real React (not Preact) for the controlled-input harness — dev dependency only.
+    jsx: 'automatic',
+    jsxImportSource: 'react',
+    entryPoints: [`${root}/tests/harness/react-form.jsx`],
+    outfile: `${root}/dist-harness/react-form.js`,
+    format: 'iife',
+  },
 ];
 
 function copyStatic() {
