@@ -57,4 +57,42 @@ describe('palette search', () => {
     expect(searchIndex(index, '', { limit: 5 })).toHaveLength(5);
     expect(searchIndex(index, 'zzzznothing')).toHaveLength(0);
   });
+
+  it('groups every work entry under its position with a dated heading', () => {
+    const work = index.filter((r) => r.category === 'work');
+    expect(work.length).toBeGreaterThan(0);
+    expect(work.every((r) => r.groupKey && r.group)).toBe(true);
+    // One group per position, heading names title + company + dates.
+    const groups = new Map(work.map((r) => [r.groupKey, r.group]));
+    expect(groups.size).toBe(vault.work.length);
+    for (const position of vault.work) {
+      const heading = groups.get(position.id);
+      expect(heading).toContain(position.title);
+      expect(heading).toContain(position.company);
+      expect(heading).toMatch(/\d{2}\/\d{4}/); // formatted start date
+    }
+    const current = vault.work.find((w) => w.current);
+    if (current) expect(groups.get(current.id)).toContain('Present');
+  });
+
+  it('gives grouped work entries short labels without the entity decoration', () => {
+    const work = index.filter((r) => r.category === 'work');
+    const shorts = work.map((r) => r.shortLabel);
+    expect(shorts).toContain('Company');
+    expect(shorts).toContain('Title');
+    expect(shorts).toContain('Summary');
+    // A bullet with its own label keeps that handle as the short label.
+    const labeledBullet = vault.work[0]?.bullets.find((b) => b.label);
+    if (labeledBullet) expect(shorts).toContain(labeledBullet.label);
+    // Variant rows keep the style suffix on the short label too.
+    const variant = work.find((r) => r.label.includes('(responsibilities)'));
+    expect(variant?.shortLabel).toMatch(/\(responsibilities\)$/);
+    // Short labels never repeat the "X @ Y" decoration the heading already carries.
+    expect(shorts.every((s) => s === undefined || !s.includes(' @ '))).toBe(true);
+  });
+
+  it('keeps non-work categories ungrouped (for now)', () => {
+    const personal = index.filter((r) => r.category === 'personal');
+    expect(personal.every((r) => r.groupKey === undefined)).toBe(true);
+  });
 });

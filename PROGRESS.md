@@ -306,6 +306,13 @@ of the session: what is true in the repo right now, what was decided, and what i
   touch toolbar (Invoke / Palette / Fill all / Undo) because phones have no keyboard shortcuts —
   it drives the overlay's own buttons, it is not product UI. `demo/**` joined dist ignores in
   eslint/prettier configs.
+- **2026-09-06 19:50 — Palette category views group by entity.** `SearchResult` gained
+  `groupKey`/`group`/`shortLabel`; work entries share one group per position (heading =
+  title — company · dates). Grouping renders only in specific-category tabs (the ranked All
+  view stays flat), groups ordered by best-ranked entry. Education/projects can adopt the
+  same fields later. Heading style needs `flex-shrink:0` — overflow:hidden zeroes the flex
+  auto-min-size and the over-full column squeezed headings to 4px (caught by shots read-back;
+  e2e now asserts heading height).
 - **2026-09-06 15:00 — Tailnet serving is `scripts/serve-demo.mjs`** (`npm run demo:tailnet`):
   binds 127.0.0.1 and wires `tailscale serve --bg` (tailnet-only HTTPS; teardown
   `tailscale serve reset`). If the tailnet lacks HTTPS/MagicDNS it stops and prints tailscale's

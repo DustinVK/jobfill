@@ -9,7 +9,14 @@
 import type { SearchResult } from './messages.js';
 import type { Snippet, Vault } from './types.js';
 import { activeVersion, resolveVariant } from './compose.js';
-import { formatAddressFull, formatPhone, fullName, joinList } from './format.js';
+import {
+  formatAddressFull,
+  formatDate,
+  formatEndDate,
+  formatPhone,
+  fullName,
+  joinList,
+} from './format.js';
 
 interface IndexEntry extends SearchResult {
   /** Lowercased searchable text: label + value + tags. */
@@ -32,19 +39,37 @@ function entry(
   };
 }
 
+interface GroupRef {
+  groupKey: string;
+  group: string;
+}
+
 function snippetEntries(
   snippet: Snippet,
   vault: Vault,
   labelPrefix: string,
   category: Category,
   key?: string,
+  groupRef?: GroupRef,
+  /** Prefix without the entity decoration ("Summary" vs "Summary — X @ Y"), for grouped display. */
+  shortPrefix?: string,
 ): IndexEntry[] {
   const version = activeVersion(vault);
   const resolved = resolveVariant(snippet, version);
   const label = snippet.label ?? labelPrefix;
+  const shortLabel = groupRef ? (snippet.label ?? shortPrefix ?? labelPrefix) : undefined;
   const tags = snippet.tags.join(' ');
   const main = entry(
-    { id: snippet.id, kind: 'snippet', label, value: resolved, key, category },
+    {
+      id: snippet.id,
+      kind: 'snippet',
+      label,
+      shortLabel,
+      value: resolved,
+      key,
+      category,
+      ...groupRef,
+    },
     tags,
   );
   // Non-default variants are individually searchable so the palette can offer any phrasing.
@@ -56,9 +81,11 @@ function snippetEntries(
           id: `${snippet.id}:${v.id}`,
           kind: 'snippet',
           label: `${label} (${v.style})`,
+          shortLabel: shortLabel ? `${shortLabel} (${v.style})` : undefined,
           value: v.text,
           key,
           category,
+          ...groupRef,
         },
         tags,
       ),
@@ -116,25 +143,56 @@ export function buildSearchIndex(vault: Vault): IndexEntry[] {
 
   vault.work.forEach((work) => {
     const where = `${work.title} @ ${work.company}`;
+    // One group per position: the palette's Work tab renders these entries together under
+    // this heading, so per-entry labels can stay short.
+    const dates = `${formatDate(work.startDate)}–${formatEndDate(work.endDate, work.current)}`;
+    const groupRef: GroupRef = {
+      groupKey: work.id,
+      group: `${work.title} — ${work.company} · ${dates}`,
+    };
     entries.push(
       entry({
         id: `${work.id}:company`,
         kind: 'atom',
         label: `Company (${where})`,
+        shortLabel: 'Company',
         value: work.company,
         category: 'work',
+        ...groupRef,
       }),
       entry({
         id: `${work.id}:title`,
         kind: 'atom',
         label: `Title (${where})`,
+        shortLabel: 'Title',
         value: work.title,
         category: 'work',
+        ...groupRef,
       }),
     );
-    entries.push(...snippetEntries(work.summary, vault, `Summary — ${where}`, 'work'));
+    entries.push(
+      ...snippetEntries(
+        work.summary,
+        vault,
+        `Summary — ${where}`,
+        'work',
+        undefined,
+        groupRef,
+        'Summary',
+      ),
+    );
     work.bullets.forEach((bullet, i) =>
-      entries.push(...snippetEntries(bullet, vault, `Bullet ${i + 1} — ${where}`, 'work')),
+      entries.push(
+        ...snippetEntries(
+          bullet,
+          vault,
+          `Bullet ${i + 1} — ${where}`,
+          'work',
+          undefined,
+          groupRef,
+          `Bullet ${i + 1}`,
+        ),
+      ),
     );
   });
 

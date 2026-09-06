@@ -722,12 +722,58 @@ test.describe('palette category tabs', () => {
     await clickTab(page, 'work');
     const work = await visibleLabels(page);
     expect(work.length).toBeGreaterThan(0);
-    expect(work.some((l) => l.includes('Harbor Freight'))).toBe(true);
+    // Position names live in the group headings now; row labels are short.
+    expect(work).toContain('Company');
+    expect(work.every((l) => !l.includes(' @ '))).toBe(true);
 
     await clickTab(page, 'links');
     const links = await visibleLabels(page);
     expect(links.some((l) => l.includes('GitHub'))).toBe(true);
     expect(links.every((l) => !l.includes('Company'))).toBe(true);
+  });
+
+  test('work tab groups each position together under a dated heading', async ({ page }) => {
+    await clickTab(page, 'work');
+    const view = await page.evaluate(() => {
+      const container = window.__jobfillHarness!.shadow.querySelector(
+        '[data-jf="palette-results"]',
+      )!;
+      // Walk the results in DOM order: heading → its options → next heading …
+      const groups: { heading: string; height: number; options: string[] }[] = [];
+      for (const child of container.children) {
+        if (child.getAttribute('data-jf') === 'palette-group') {
+          groups.push({
+            heading: child.textContent ?? '',
+            height: child.getBoundingClientRect().height,
+            options: [],
+          });
+        } else if (child.classList.contains('jf-option')) {
+          groups[groups.length - 1]?.options.push(
+            child.querySelector('.jf-option-label')?.textContent ?? '',
+          );
+        }
+      }
+      const strays = container.firstElementChild?.getAttribute('data-jf') !== 'palette-group';
+      return { groups, strays };
+    });
+
+    // No option renders above the first heading, one group per sample position, in order.
+    expect(view.strays).toBe(false);
+    expect(view.groups).toHaveLength(2);
+    expect(view.groups[0]?.heading).toContain('Senior Software Engineer');
+    expect(view.groups[0]?.heading).toContain('Harbor Freight Logistics');
+    expect(view.groups[0]?.heading).toContain('Present'); // current role
+    expect(view.groups[1]?.heading).toContain('Brightline Health');
+    expect(view.groups[1]?.heading).toMatch(/06\/2019–02\/2022/);
+    // Every group carries its own rows: atoms first, then summary/bullets.
+    for (const group of view.groups) {
+      expect(group.options.length).toBeGreaterThanOrEqual(3);
+      expect(group.options).toContain('Company');
+      expect(group.options).toContain('Title');
+      // Actually legible, not squeezed flat by the flex column (the overflow:hidden
+      // auto-min-size trap): a heading must be at least a text line tall.
+      expect(group.height).toBeGreaterThan(12);
+    }
   });
 
   test('search composes with the selected category', async ({ page }) => {

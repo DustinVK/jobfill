@@ -68,6 +68,14 @@ export interface SearchResult {
   key?: CanonicalKey;
   /** Browsing bucket for the palette's category tabs. */
   category: 'personal' | 'links' | 'work' | 'education' | 'projects' | 'skills' | 'answers';
+  /** Entries sharing a groupKey belong to one entity (e.g. one position); the palette's
+   *  category view renders them together under the `group` heading. */
+  groupKey?: string;
+  /** Human heading for the group ("Senior Engineer — Stripe · 03/2022–Present"). */
+  group?: string;
+  /** Label without the entity decoration, for display under a group heading
+   *  ("Company" instead of "Company (Senior Engineer @ Stripe)"). */
+  shortLabel?: string;
   sensitive: boolean;
 }
 

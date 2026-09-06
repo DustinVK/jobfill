@@ -770,11 +770,30 @@ export class OverlayUI {
 
     let selectedIndex = 0;
     let currentResults: SearchResult[] = [];
-    const visibleResults = () =>
-      (selectedCategory === 'all'
-        ? currentResults
-        : currentResults.filter((r) => r.category === selectedCategory)
+    const visibleResults = () => {
+      const sliced = (
+        selectedCategory === 'all'
+          ? currentResults
+          : currentResults.filter((r) => r.category === selectedCategory)
       ).slice(0, 40);
+      if (selectedCategory === 'all') return sliced;
+      // Category view: entries of one entity (a position's title/company/summary/bullets)
+      // stay together. Groups are ordered by their best-ranked entry; rank order is kept
+      // within each group; ungrouped entries ride along as singletons.
+      const order: string[] = [];
+      const buckets = new Map<string, SearchResult[]>();
+      for (const result of sliced) {
+        const groupKey = result.groupKey ?? `~solo:${result.id}`;
+        const bucket = buckets.get(groupKey);
+        if (bucket) {
+          bucket.push(result);
+        } else {
+          buckets.set(groupKey, [result]);
+          order.push(groupKey);
+        }
+      }
+      return order.flatMap((groupKey) => buckets.get(groupKey) ?? []);
+    };
 
     let armedSensitive: SearchResult | undefined;
     const commit = (result: SearchResult | undefined, copy: boolean) => {
@@ -813,19 +832,27 @@ export class OverlayUI {
 
     const renderResults = () => {
       results.replaceChildren();
+      let lastGroup: string | undefined;
       visibleResults().forEach((result, i) => {
+        // Group headings in category view only — the ranked All view stays flat.
+        if (selectedCategory !== 'all' && result.group && result.group !== lastGroup) {
+          const heading = el(this.doc, 'div', 'jf-group', result.group);
+          heading.setAttribute('data-jf', 'palette-group');
+          results.append(heading);
+        }
+        lastGroup = result.group;
         const option = el(
           this.doc,
           'button',
           `jf-option${i === selectedIndex ? ' jf-active' : ''}`,
         );
+        // Under a heading the entity is already named — use the short label.
+        const label =
+          selectedCategory !== 'all' && result.group
+            ? (result.shortLabel ?? result.label)
+            : result.label;
         option.append(
-          el(
-            this.doc,
-            'span',
-            'jf-option-label',
-            `${result.sensitive ? '🔒 ' : ''}${result.label}`,
-          ),
+          el(this.doc, 'span', 'jf-option-label', `${result.sensitive ? '🔒 ' : ''}${label}`),
           el(this.doc, 'span', 'jf-option-value', result.value),
         );
         option.addEventListener('click', () => commit(result, false));

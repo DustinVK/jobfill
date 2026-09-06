@@ -180,6 +180,23 @@ export const OVERLAY_STYLES = `
   .jf-palette .jf-search { width: 100%; box-sizing: border-box; font-size: 15px; padding: 9px 10px; }
   .jf-palette-target { font-size: 11px; color: #9bb0c3; }
   .jf-cats { display: flex; gap: 4px; flex-wrap: wrap; }
+  .jf-group {
+    /* overflow:hidden (ellipsis) zeroes the flex auto-min-size — without flex-shrink:0 the
+       over-full column squeezes headings to their padding. */
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #7fd08f;
+    padding: 8px 8px 2px;
+    border-top: 1px solid #2a3a4d;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .jf-group:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
   .jf-cat {
     font: inherit;
     font-size: 11px;
