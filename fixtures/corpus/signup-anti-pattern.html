@@ -1,0 +1,20 @@
+<!-- jobfill-fixture
+{
+  "deny": {
+    "#pw2": "password"
+  },
+  "none": [
+    "#uname"
+  ],
+  "expect": {
+    "#fn": "identity.firstName",
+    "#ln": "identity.lastName"
+  }
+}
+-->
+<form>
+  <label for="fn">First name</label><input id="fn">
+  <label for="ln">Last name</label><input id="ln">
+  <label for="uname">Choose a username</label><input id="uname">
+  <label for="pw2">Create password</label><input id="pw2" type="password">
+</form>

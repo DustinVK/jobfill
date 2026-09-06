@@ -1,0 +1,22 @@
+<!-- jobfill-fixture
+{
+  "expect": {
+    "#a1": "address.line1",
+    "#a2": "address.line2",
+    "#city": "address.city",
+    "#state": "address.state",
+    "#zip": "address.postalCode",
+    "#country": "address.country"
+  },
+  "fillAll": true
+}
+-->
+<fieldset><legend>Home address</legend>
+  <label for="a1">Address line 1</label><input id="a1">
+  <label for="a2">Address line 2 (apt, suite)</label><input id="a2">
+  <label for="city">City</label><input id="city">
+  <label for="state">State</label><input id="state">
+  <label for="zip">ZIP code</label><input id="zip">
+  <label for="country">Country</label>
+  <select id="country"><option>United States</option><option>Canada</option></select>
+</fieldset>
