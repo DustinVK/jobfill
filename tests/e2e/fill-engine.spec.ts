@@ -498,3 +498,93 @@ test.describe('overlay chrome (badge toggle, Esc audit, movable bar, skip counts
     expect(after).toBe(before - 1);
   });
 });
+
+test.describe('the fill bar is unlosable (off-screen bug)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/plain-form.html');
+    await injectContentBundle(page);
+    await waitForFillBar(page);
+  });
+
+  const barWithinViewport = (page: Page) =>
+    page.evaluate(() => {
+      const rect = window
+        .__jobfillHarness!.shadow.querySelector('.jf-bar')!
+        .getBoundingClientRect();
+      return (
+        rect.left >= 0 &&
+        rect.top >= 0 &&
+        rect.right <= window.innerWidth &&
+        rect.bottom <= window.innerHeight
+      );
+    });
+
+  const dragBarTo = (page: Page, x: number, y: number) =>
+    page.evaluate(
+      ([toX, toY]) => {
+        const shadow = window.__jobfillHarness!.shadow;
+        const handle = shadow.querySelector<HTMLElement>('[data-jf="drag"]')!;
+        const rect = handle.getBoundingClientRect();
+        const opts = { bubbles: true, composed: true, pointerId: 1 };
+        handle.dispatchEvent(
+          new PointerEvent('pointerdown', { ...opts, clientX: rect.x + 2, clientY: rect.y + 2 }),
+        );
+        window.dispatchEvent(
+          new PointerEvent('pointermove', { ...opts, clientX: toX!, clientY: toY! }),
+        );
+        window.dispatchEvent(new PointerEvent('pointerup', opts));
+      },
+      [x, y] as const,
+    );
+
+  test('dragging far past every edge still leaves the whole bar visible', async ({ page }) => {
+    await dragBarTo(page, 5000, 5000); // way past bottom-right
+    expect(await barWithinViewport(page)).toBe(true);
+    await dragBarTo(page, -5000, -5000); // way past top-left
+    expect(await barWithinViewport(page)).toBe(true);
+  });
+
+  test('flipping orientation after a drag to the edge keeps the bar inside', async ({ page }) => {
+    const size = page.viewportSize()!;
+    // Park the (horizontal) bar at the very bottom edge…
+    await dragBarTo(page, size.width - 40, size.height - 20);
+    expect(await barWithinViewport(page)).toBe(true);
+    // …then flip vertical: the bar gets much taller and must be re-clamped, not clipped.
+    await clickOverlay(page, '[data-jf="toggle-orientation"]');
+    expect(await barWithinViewport(page)).toBe(true);
+  });
+
+  test('a drag whose pointerup never fires cannot strand the bar (pointercancel path)', async ({
+    page,
+  }) => {
+    await page.evaluate(() => {
+      const shadow = window.__jobfillHarness!.shadow;
+      const handle = shadow.querySelector<HTMLElement>('[data-jf="drag"]')!;
+      const rect = handle.getBoundingClientRect();
+      const opts = { bubbles: true, composed: true, pointerId: 1 };
+      handle.dispatchEvent(
+        new PointerEvent('pointerdown', { ...opts, clientX: rect.x + 2, clientY: rect.y + 2 }),
+      );
+      window.dispatchEvent(
+        new PointerEvent('pointermove', { ...opts, clientX: 9000, clientY: 9000 }),
+      );
+      window.dispatchEvent(new PointerEvent('pointercancel', opts)); // e.g. OS stole the pointer
+    });
+    expect(await barWithinViewport(page)).toBe(true);
+  });
+
+  test('double-clicking the grip resets the bar to its docked position', async ({ page }) => {
+    await dragBarTo(page, 100, 100);
+    await page.evaluate(() => {
+      window
+        .__jobfillHarness!.shadow.querySelector<HTMLElement>('[data-jf="drag"]')!
+        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    const docked = await page.evaluate(() => {
+      const bar = window.__jobfillHarness!.shadow.querySelector<HTMLElement>('.jf-bar')!;
+      return bar.style.left === '' && bar.style.bottom === '';
+    });
+    expect(docked).toBe(true);
+    expect(await barWithinViewport(page)).toBe(true);
+  });
+});

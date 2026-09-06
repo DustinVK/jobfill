@@ -118,9 +118,13 @@ export class OverlayUI {
     this.bar.replaceChildren();
 
     const dragHandle = el(this.doc, 'span', 'jf-drag', '⠿');
-    dragHandle.title = 'Drag to move';
+    dragHandle.title = 'Drag to move · double-click to reset position';
     dragHandle.setAttribute('data-jf', 'drag');
     dragHandle.addEventListener('pointerdown', (event) => this.startBarDrag(event));
+    dragHandle.addEventListener('dblclick', () => {
+      this.barPosition = undefined; // escape hatch: snap back to the docked default
+      this.applyBarLayout();
+    });
     this.bar.append(dragHandle);
 
     const version = el(this.doc, 'span', 'jf-version', state.activeVersionName || 'jobfill');
@@ -228,14 +232,22 @@ export class OverlayUI {
     this.renderBadges();
   }
 
-  /** Re-applies orientation + dragged position after each render (render rebuilds the bar). */
+  /**
+   * Re-applies orientation + dragged position after each render, ALWAYS clamped into the
+   * viewport — the bar must be unlosable no matter how it got where it is (drag released
+   * outside the window, orientation flip changing its size, window resize…).
+   */
   private applyBarLayout(): void {
     this.bar.classList.toggle('jf-vertical', this.barVertical);
     if (this.barPosition) {
+      // Position first so the rect reflects the current orientation, then clamp.
       this.bar.style.left = `${this.barPosition.left}px`;
       this.bar.style.top = `${this.barPosition.top}px`;
       this.bar.style.bottom = 'auto';
       this.bar.style.transform = 'none';
+      this.clampBarPosition();
+      this.bar.style.left = `${this.barPosition.left}px`;
+      this.bar.style.top = `${this.barPosition.top}px`;
     } else {
       this.bar.style.left = '';
       this.bar.style.top = '';
@@ -244,31 +256,57 @@ export class OverlayUI {
     }
   }
 
+  /** Forces the dragged position fully inside the viewport (min 4px margin). */
+  private clampBarPosition(): void {
+    if (!this.barPosition) return;
+    const win = this.doc.defaultView ?? window;
+    const { width, height } = this.bar.getBoundingClientRect();
+    // Floor the bounds: fractional bar widths otherwise leave a sub-pixel sliver past the
+    // viewport edge (right = 1280.00002 on a 1280 window).
+    this.barPosition = {
+      left: Math.round(
+        Math.min(
+          Math.max(4, this.barPosition.left),
+          Math.max(4, Math.floor(win.innerWidth - width) - 4),
+        ),
+      ),
+      top: Math.round(
+        Math.min(
+          Math.max(4, this.barPosition.top),
+          Math.max(4, Math.floor(win.innerHeight - height) - 4),
+        ),
+      ),
+    };
+  }
+
   private startBarDrag(event: PointerEvent): void {
     event.preventDefault();
+    const handle = event.currentTarget as HTMLElement;
+    // Pointer capture: the release fires even outside the window — without it, a drag
+    // released off-screen skipped the clamp and stranded the bar (live bug).
+    try {
+      handle.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* synthetic events may carry an unregistered pointerId */
+    }
     const rect = this.bar.getBoundingClientRect();
     const offsetX = event.clientX - rect.left;
     const offsetY = event.clientY - rect.top;
     const win = this.doc.defaultView ?? window;
     const onMove = (move: PointerEvent) => {
+      // Clamp on EVERY move — the bar can never leave the viewport even mid-drag.
       this.barPosition = { left: move.clientX - offsetX, top: move.clientY - offsetY };
       this.applyBarLayout();
     };
-    const onUp = () => {
+    const finish = () => {
       win.removeEventListener('pointermove', onMove);
-      win.removeEventListener('pointerup', onUp);
-      // Clamp back into the viewport so the bar can't be lost off-screen.
-      if (this.barPosition) {
-        const { width, height } = this.bar.getBoundingClientRect();
-        this.barPosition = {
-          left: Math.min(Math.max(4, this.barPosition.left), win.innerWidth - width - 4),
-          top: Math.min(Math.max(4, this.barPosition.top), win.innerHeight - height - 4),
-        };
-        this.applyBarLayout();
-      }
+      win.removeEventListener('pointerup', finish);
+      win.removeEventListener('pointercancel', finish);
+      this.applyBarLayout();
     };
     win.addEventListener('pointermove', onMove);
-    win.addEventListener('pointerup', onUp);
+    win.addEventListener('pointerup', finish);
+    win.addEventListener('pointercancel', finish);
   }
 
   private async runFillAll(): Promise<void> {
@@ -369,6 +407,8 @@ export class OverlayUI {
     this.repositionScheduled = true;
     requestAnimationFrame(() => {
       this.repositionScheduled = false;
+      // A shrinking window must pull a dragged bar back inside.
+      if (this.barPosition) this.applyBarLayout();
       const badges = [...this.badgeLayer.children] as HTMLElement[];
       const entries = this.deps.session.current.entries.filter(
         (e) => this.badgeKindFor(e) !== 'none',
