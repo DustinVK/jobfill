@@ -31,9 +31,12 @@ adapters for the real messaging/storage/injection stack.*
 - [ ] Data survives a full browser restart (close Firefox, reopen, options still populated).
       *(Skip under a temporary add-on profile that discards state; use a persistent profile.)*
 - [ ] In a second terminal, `npm run demo`; in the extension's Firefox, open
-      `http://localhost:5177/plain-form.html` and invoke jobfill (toolbar click AND
-      Alt+Shift+J — test both). The fill bar appears with the version name
+      `http://localhost:5177/plain-form.html`. Test all three invocations:
+      **toolbar click** → popup → **Fill this page**; **Alt+Shift+J** → same popup;
+      **Alt+Shift+Space** → direct activation. Each ends with the fill bar showing
       "Everything / impact-first".
+- [ ] Popup edge cases: on `about:newtab` the **Fill this page** button is disabled with an
+      explanation; **Open options** opens the options page.
 - [ ] **Fill N fields** fills first/last/email/phone/city/zip/linkedin/company/title with
       Maya's values through the REAL messaging adapters, scrolling each field into view.
 - [ ] `storage.session` isolation: from the page's devtools console (not the extension's),

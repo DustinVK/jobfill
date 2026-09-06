@@ -28,6 +28,25 @@ body {
 }
 #app {
   padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.muted {
+  color: var(--muted);
+  margin: 0;
+  font-size: 13px;
+}
+.error {
+  color: #c0392b;
+  margin: 0;
+  font-size: 13px;
+}
+kbd {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 12px;
 }
 button {
   font: inherit;
@@ -38,4 +57,12 @@ button {
   background: var(--accent);
   color: #fff;
   cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.secondary {
+  background: transparent;
+  color: var(--fg);
 }

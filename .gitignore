@@ -7,3 +7,6 @@ playwright-report/
 *.log
 web-ext-artifacts/
 src/shared/schema/validate-import.gen.cjs
+
+# Personal data kept locally, never in the repo
+Resumes/

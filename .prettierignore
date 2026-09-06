@@ -9,3 +9,4 @@ fixtures/**/*.html
 *.md
 .claude/
 src/shared/schema/validate-import.gen.cjs
+Resumes/

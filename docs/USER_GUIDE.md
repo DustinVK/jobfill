@@ -81,7 +81,9 @@ bytes — in the same format the importer reads. Export before experimenting; **
 ## 3. Fill an application
 
 1. Navigate to the application form.
-2. Click the **jobfill toolbar button** or press **Alt+Shift+J**.
+2. Click the **jobfill toolbar button** (or press **Alt+Shift+J**) — a small popup opens —
+   and click **Fill this page**. (**Alt+Shift+Space** skips the popup and activates jobfill
+   with the palette directly.)
 3. The **fill bar** appears at the bottom of the page showing your active version's name,
    and dots appear on recognized fields:
 
@@ -137,7 +139,7 @@ jobfill can't classify at all:
 
 | Symptom | Likely cause / fix |
 |---|---|
-| Toolbar click does nothing on a page | Some pages refuse content scripts (Mozilla-protected domains, `about:` pages, quarantined domains). Nothing can be done there; the palette also won't work. |
+| **Fill this page** is greyed out or errors | Some pages refuse content scripts (Mozilla-protected domains, `about:`/extension pages, quarantined domains). Nothing can be done there; the palette also won't work. |
 | Fill bar says "No form fields found" | The form may live in a **cross-origin iframe** (common with Greenhouse/iCIMS embeds) — tonight's build can't reach into those; open the form's own URL directly. Also appears briefly on slow SPAs — jobfill rescans automatically as fields mount. |
 | No **Fill N** button, only Review | Fewer than 3 fields classified confidently — a guard against filling search boxes. Use Review or the palette. |
 | A field filled then went orange | The site's own JavaScript rewrote the value after filling. Click the field and fix it by hand, or use the popover again. |
@@ -150,7 +152,7 @@ jobfill can't classify at all:
 
 | Keys | Where | Action |
 |---|---|---|
-| **Alt+Shift+J** | any page | invoke jobfill / re-scan |
+| **Alt+Shift+J** | any page | open the popup (then **Fill this page**) |
 | **Alt+Shift+Space** | any page (overlay active) | open the palette |
 | **Enter** | popover / palette | fill (non-sensitive) |
 | **Shift+Enter** | palette | copy instead of fill |

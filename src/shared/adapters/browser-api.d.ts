@@ -10,6 +10,7 @@ declare namespace browser {
     const id: string;
     const lastError: { message?: string } | undefined;
     function getURL(path: string): string;
+    function openOptionsPage(): Promise<void>;
     function sendMessage(message: unknown): Promise<unknown>;
     const onMessage: {
       addListener(

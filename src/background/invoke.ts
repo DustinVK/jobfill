@@ -1,7 +1,10 @@
 /**
- * Invocation paths (SPEC §8.4): keyboard command and toolbar click both inject the content
- * bundle into the active tab. `activeTab` covers the top frame and same-origin frames;
- * cross-origin frames fail silently and are reported, never retried behind the user's back.
+ * Invocation paths (SPEC §8.4). With `action.default_popup` set, toolbar clicks and
+ * Alt+Shift+J (`_execute_action`) open the POPUP, which does its own injection via its
+ * "Fill this page" button — no background listener fires for those. The background handles
+ * only the `open-palette` command (Alt+Shift+Space). `activeTab` covers the top frame and
+ * same-origin frames; cross-origin frames fail silently and are reported, never retried
+ * behind the user's back.
  */
 import type { BackgroundEnv } from '../shared/adapters/types.js';
 
@@ -25,6 +28,7 @@ export function registerInvocations(env: BackgroundEnv): void {
     if (tabId === undefined) return;
     if (command === 'open-palette') void injectContent(env, tabId);
   });
-  // Present for parity: only fires if the action ever ships without a default_popup.
+  // Dead while default_popup is set (Firefox never fires action.onClicked then); kept so
+  // removing the popup can't silently orphan the toolbar button.
   env.runtime.onActionClicked((tabId) => void injectContent(env, tabId));
 }
