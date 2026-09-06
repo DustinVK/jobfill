@@ -7,6 +7,8 @@ import { defineConfig } from '@playwright/test';
  */
 export default defineConfig({
   testDir: 'tests/e2e',
+  // The visual-QA capture spec is opt-in (`npm run shots`) — never part of the e2e gate.
+  testIgnore: process.env.SHOTS ? [] : ['**/screenshots.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,

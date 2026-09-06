@@ -23,7 +23,9 @@
     "dev:options": "npm run build:harness && node scripts/dev-server.mjs",
     "demo": "npm run build:harness && node scripts/dev-server.mjs",
     "gen:schema": "node scripts/gen-validator.mjs",
-    "pretest": "npm run gen:schema"
+    "pretest": "npm run gen:schema",
+    "shots": "npm run build:harness && SHOTS=1 playwright test tests/e2e/screenshots.spec.ts && node scripts/build-contact-sheet.mjs",
+    "shots:serve": "node scripts/serve-shots.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",

@@ -13,3 +13,11 @@ export async function injectContentBundle(page: Page): Promise<void> {
   await page.addScriptTag({ path: BUNDLE });
   await page.waitForFunction(() => Boolean(window.__jobfillHarness));
 }
+
+/** Injected overlay is up: bar rendered and the initial scan/compose round-trip settled. */
+export async function waitForOverlay(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const shadow = window.__jobfillHarness?.shadow;
+    return Boolean(shadow?.querySelector('.jf-bar')?.textContent);
+  });
+}
