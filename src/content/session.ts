@@ -44,12 +44,29 @@ export interface SessionState {
   generation: number;
   fillAllEligible: boolean;
   activeVersionName: string;
+  /** All versions (id + name) for the fill bar's inline switcher (SPEC §3.3). */
+  versions: { id: string; name: string }[];
+  activeVersionId: string;
   /** The active version's resume file, when one exists (SPEC §3.7 attach offer). */
   attachedFile?: { id: string; name: string };
 }
 
 // The in-memory site-memory stub (Rung 2 scope) lives on the session: `map…` corrections
 // apply for the lifetime of the page only. Real per-origin persistence is SPEC M4.
+
+/** "05/2021" → "05" | "2021"; undefined when the value has no such slice ("Present"). */
+function sliceDatePart(value: string, part: 'month' | 'year'): string | undefined {
+  const match = /^(\d{2})\/(\d{4})$/.exec(value);
+  if (!match) return undefined;
+  return part === 'month' ? match[1]! : match[2]!;
+}
+
+function byDocumentOrder(a: PlanEntry, b: PlanEntry): number {
+  const position = a.field.element.compareDocumentPosition(b.field.element);
+  if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+  if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+  return 0;
+}
 
 export class FillSession {
   readonly snapshots = new SnapshotStore();
@@ -58,6 +75,8 @@ export class FillSession {
     generation: 0,
     fillAllEligible: false,
     activeVersionName: '',
+    versions: [],
+    activeVersionId: '',
   };
   private readonly siteMemoryStub = new Map<string, string>();
   /** Latest fill-context answers — sensitivity + question-matching source for corrections. */
@@ -160,21 +179,71 @@ export class FillSession {
       generation: this.state.generation + 1,
       fillAllEligible: result.fillAllEligible,
       activeVersionName: context.activeVersionName,
+      versions: context.versions,
+      activeVersionId: context.activeVersionId,
       attachedFile: context.attachedFile,
     };
     this.emit();
     return this.state;
   }
 
-  /** Auto-tier entries with a non-empty proposal — what "Fill N" fills. */
+  /**
+   * Auto-tier entries with a non-empty proposal — what "Fill N" fills. Strict DOCUMENT
+   * order (radio/checkbox groups scan last, which used to make fill-all scroll back up —
+   * one smooth top-to-bottom pass instead), and fields that ALREADY hold the proposed
+   * value don't count: SPA re-renders can replace elements and lose our fill markers, and
+   * re-offering "Fill N" for already-correct fields looked like extra passes.
+   */
   autoEntries(): PlanEntry[] {
-    return this.state.entries.filter(
-      (e) =>
-        e.classification.tier === 'auto' &&
-        e.value?.value &&
-        !e.classification.sensitive &&
-        e.fillState === undefined,
-    );
+    return this.state.entries
+      .filter(
+        (e) =>
+          e.classification.tier === 'auto' &&
+          e.value?.value &&
+          !e.classification.sensitive &&
+          e.fillState === undefined &&
+          !this.valueAlreadyApplied(e),
+      )
+      .sort(byDocumentOrder);
+  }
+
+  /** Is the proposed value already on the page (fill happened or user typed it)? */
+  private valueAlreadyApplied(entry: PlanEntry): boolean {
+    const el = entry.field.element;
+    const proposed = entry.value?.value ?? '';
+    if (!proposed) return false;
+    const targets = entry.value?.choiceTargets ?? [proposed];
+    switch (entry.field.kind) {
+      case 'text':
+      case 'textarea':
+      case 'combobox': {
+        if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return false;
+        const expected = entry.classification.datePart
+          ? sliceDatePart(proposed, entry.classification.datePart)
+          : proposed;
+        return expected !== undefined && el.value === expected;
+      }
+      case 'select': {
+        if (!(el instanceof HTMLSelectElement)) return false;
+        const current = el.selectedOptions[0];
+        if (!current) return false;
+        return matchChoice([current.label || current.text], targets) !== undefined;
+      }
+      case 'checkbox': {
+        if (!(el instanceof HTMLInputElement)) return false;
+        const polarity = matchChoice(['yes', 'no'], targets, 0.4);
+        return polarity !== undefined && el.checked === (polarity.index === 0);
+      }
+      case 'radio-group': {
+        const radios = entry.field.groupElements ?? [];
+        const checked = radios.find((r) => r.checked);
+        if (!checked) return false;
+        const label = checked.closest('label')?.textContent?.trim() ?? checked.value;
+        return matchChoice([label], targets) !== undefined;
+      }
+      default:
+        return false;
+    }
   }
 
   /**
@@ -183,14 +252,22 @@ export class FillSession {
    * a skip leaves the count, not just the current queue.
    */
   suggestEntries(): PlanEntry[] {
-    return this.state.entries.filter(
-      (e) =>
-        e.classification.tier === 'suggest' &&
-        !e.classification.sensitive &&
-        (e.value?.value || e.value?.choiceTargets) &&
-        e.fillState === undefined &&
-        !this.skippedElements.has(e.field.element),
-    );
+    return this.state.entries
+      .filter(
+        (e) =>
+          e.classification.tier === 'suggest' &&
+          !e.classification.sensitive &&
+          (e.value?.value || e.value?.choiceTargets) &&
+          e.fillState === undefined &&
+          !this.skippedElements.has(e.field.element),
+      )
+      .sort(byDocumentOrder);
+  }
+
+  /** Inline version switch (SPEC §3.3): set active, then re-propose everything. */
+  async setActiveVersion(id: string, root: ParentNode = document): Promise<void> {
+    await this.client.send({ t: 'version.setActive', id });
+    await this.refresh(root);
   }
 
   /** Review skip: drop the field from the count/queue until Undo resets the session. */
@@ -218,9 +295,9 @@ export class FillSession {
     let value = override ?? entry.value?.value ?? '';
     // Segmented date widgets take one slice of the composed MM/YYYY (SPEC §7.4).
     if (!override && entry.classification.datePart && value) {
-      const match = /^(\d{2})\/(\d{4})$/.exec(value);
-      if (match) {
-        value = entry.classification.datePart === 'month' ? match[1]! : match[2]!;
+      const sliced = sliceDatePart(value, entry.classification.datePart);
+      if (sliced !== undefined) {
+        value = sliced;
       } else {
         // "Present" (current role) has no month/year slice — tell the user what to do
         // instead of writing garbage into a date segment.

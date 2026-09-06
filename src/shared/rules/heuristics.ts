@@ -107,7 +107,10 @@ const rules: HeuristicRule[] = [
   {
     key: 'work[0].title',
     positive: /job ?title|^title$|^position$|current ?(job|position|role)|^role$/,
-    negative: /honorific|book|film/,
+    // "describe your … current role" is a SUMMARY prompt, not a title field; and a job
+    // title is never a textarea.
+    negative: /honorific|book|film|describe|responsibilit|duties|description/,
+    widgets: ['singleline', 'choice'],
   },
   {
     // In-group "Location" means the JOB's location; a location field on a page with no

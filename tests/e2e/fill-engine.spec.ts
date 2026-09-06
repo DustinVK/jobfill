@@ -19,13 +19,6 @@ async function clickOverlay(page: Page, selector: string): Promise<void> {
   expect(clicked, `overlay control ${selector} present`).toBe(true);
 }
 
-async function overlayText(page: Page, selector: string): Promise<string | null> {
-  return page.evaluate(
-    (sel) => window.__jobfillHarness?.shadow.querySelector(sel)?.textContent ?? null,
-    selector,
-  );
-}
-
 async function waitForFillBar(page: Page): Promise<void> {
   await page.waitForFunction(() =>
     Boolean(window.__jobfillHarness?.shadow.querySelector('[data-jf="fill-all"], .jf-bar')),
@@ -122,9 +115,53 @@ test.describe('plain form', () => {
     await expect(page.locator('#email')).toHaveValue('');
   });
 
-  test('fill bar shows the active version name', async ({ page }) => {
-    const version = await overlayText(page, '.jf-version');
-    expect(version).toBe('Everything / impact-first');
+  test('the version switcher lists all versions and switching re-proposes fields', async ({
+    page,
+  }) => {
+    // Sample vault has 3 versions → the compact switcher renders (single-version vaults get nothing).
+    const options = await page.evaluate(() => {
+      const select = window.__jobfillHarness!.shadow.querySelector<HTMLSelectElement>(
+        '[data-jf="version-select"]',
+      );
+      // Display text truncates at 22 chars; the option title keeps the full name.
+      return select ? [...select.options].map((o) => o.title) : null;
+    });
+    expect(options).toContain('Everything / impact-first');
+    expect(options).toContain('Responsibilities (gov/Workday)');
+
+    // Switch to the responsibilities version: the summary proposal changes phrasing.
+    await page.evaluate(() => {
+      const select = window.__jobfillHarness!.shadow.querySelector<HTMLSelectElement>(
+        '[data-jf="version-select"]',
+      )!;
+      const target = [...select.options].find((o) => o.text.startsWith('Responsibilities'))!;
+      select.value = target.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForFunction(() => {
+      const entry = window.__jobfillHarness!.session.session.current.entries.find(
+        (e) => e.field.element.id === 'summary',
+      );
+      return entry?.value?.value?.includes('Responsible for') ?? false;
+    });
+  });
+
+  test('fill-all runs top-to-bottom and a second pass has nothing left to do', async ({ page }) => {
+    await clickOverlay(page, '[data-jf="fill-all"]');
+    await expect(page.locator('#first_name')).toHaveValue('Maya');
+    await expect(page.locator('#title')).toHaveValue('Senior Software Engineer');
+    // Every proposed value is on the page now — the button must be gone, not offering a
+    // phantom second pass.
+    await page.waitForFunction(
+      () => !window.__jobfillHarness?.shadow.querySelector('[data-jf="fill-all"]'),
+    );
+    // And even after a forced rescan (entries rebuilt from scratch), still nothing to fill.
+    await page.evaluate(() => window.__jobfillHarness!.session.session.refresh(document));
+    await page.waitForFunction(
+      () =>
+        (window.__jobfillHarness?.session.session.current.entries.length ?? 0) > 0 &&
+        !window.__jobfillHarness?.shadow.querySelector('[data-jf="fill-all"]'),
+    );
   });
 });
 

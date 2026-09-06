@@ -100,6 +100,9 @@ export interface ProtocolMap {
       fillAllThreshold: number;
       suggestThreshold: number;
       activeVersionName: string;
+      /** For the fill bar's inline switcher (SPEC §3.3) — names only, id + label. */
+      versions: { id: string; name: string }[];
+      activeVersionId: string;
       /**
        * The active version's attached resume (falls back to the sole resume-kind file when
        * no explicit link exists) — what the fill bar's attach button offers (SPEC §3.7).

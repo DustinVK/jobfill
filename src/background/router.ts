@@ -47,7 +47,9 @@ const MAX_FILE_BYTES = 25 * 1_048_576;
  * for content — tonight the slice for web contexts is "nothing", which is stricter).
  */
 const PRIVILEGED_TYPES = new Set([
-  'version.setActive',
+  // version.setActive is deliberately NOT privileged: the fill bar's inline version
+  // switcher (SPEC §3.3) runs in the content script; the handler only selects among
+  // existing validated version ids and exposes nothing.
   'vault.get',
   'vault.patch',
   'vault.wipe',
@@ -172,6 +174,8 @@ async function handle(
         fillAllThreshold: vault.settings.fillAllThreshold,
         suggestThreshold: vault.settings.suggestThreshold,
         activeVersionName: active?.name ?? 'Default',
+        versions: vault.versions.map((v) => ({ id: v.id, name: v.name })),
+        activeVersionId: vault.settings.activeVersionId,
         ...(attachedFile ? { attachedFile: { id: attachedFile.id, name: attachedFile.name } } : {}),
       };
     }

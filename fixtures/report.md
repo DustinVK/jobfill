@@ -3,7 +3,7 @@
 Snapshot of ACTUAL classifier output (tests/unit/corpus.dom.test.ts); regenerate with
 `npx vitest run corpus -u` and review the diff.
 
-Fixtures: 61 | positive expectations: 96 | deny expectations: 12 | must-not-classify: 9
+Fixtures: 62 | positive expectations: 98 | deny expectations: 12 | must-not-classify: 9
 
 | Fixture / field | Expected | Got | Tier | Signal | Score |
 |---|---|---|---|---|---|
@@ -82,6 +82,8 @@ Fixtures: 61 | positive expectations: 96 | deny expectations: 12 | must-not-clas
 | signup-anti-pattern.html #ln | identity.lastName | identity.lastName | auto | label | 0.90 |
 | skills-input.html #sk | skills | skills | auto | label | 0.90 |
 | sponsorship-question.html #sp | answers.sponsorship | answers.sponsorship | suggest | question | 0.85 |
+| summary-not-title.html #sum-cur | work[0].summary | work[0].summary | auto | label | 0.90 |
+| summary-not-title.html #t | work[0].title | work[0].title | auto | label | 0.90 |
 | why-join.html #w | coverLetter.text | coverLetter.text | suggest | label | 0.90 |
 | work-auth-question.html #wa | answers.workAuthorization | answers.workAuthorization | suggest | question | 0.85 |
 | work-basics.html #co | work[0].company | work[0].company | auto | label | 0.90 |

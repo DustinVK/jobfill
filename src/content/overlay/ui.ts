@@ -127,9 +127,27 @@ export class OverlayUI {
     });
     this.bar.append(dragHandle);
 
-    const version = el(this.doc, 'span', 'jf-version', state.activeVersionName || 'jobfill');
-    version.title = 'Active resume version';
-    this.bar.append(version);
+    // Version switcher (SPEC §3.3): always present so the active version is visible AND
+    // changeable; names truncate to keep the bar compact (full name in the tooltip).
+    if (state.versions.length > 0) {
+      const truncate = (name: string) => (name.length > 22 ? `${name.slice(0, 21)}…` : name);
+      const versionSelect = el(this.doc, 'select', 'jf-version-select');
+      versionSelect.setAttribute('data-jf', 'version-select');
+      const activeName =
+        state.versions.find((v) => v.id === state.activeVersionId)?.name ?? state.activeVersionName;
+      versionSelect.title = `Resume version: ${activeName} — switching re-proposes all fields`;
+      for (const version of state.versions) {
+        const option = el(this.doc, 'option', undefined, truncate(version.name));
+        option.value = version.id;
+        option.title = version.name;
+        option.selected = version.id === state.activeVersionId;
+        versionSelect.append(option);
+      }
+      versionSelect.addEventListener('change', () => {
+        void this.deps.session.setActiveVersion(versionSelect.value, this.doc);
+      });
+      this.bar.append(versionSelect);
+    }
 
     const autoCount = session.autoEntries().length;
     const suggestCount = session.suggestEntries().length;

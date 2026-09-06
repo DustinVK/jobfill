@@ -37,13 +37,16 @@ export const OVERLAY_STYLES = `
   }
   .jf-drag:active { cursor: grabbing; }
   .jf-btn[aria-pressed='false'] { opacity: 0.6; }
-  .jf-bar .jf-version {
-    font-weight: 600;
+  .jf-version-select {
+    font: inherit;
+    font-size: 12px;
+    max-width: 150px;
+    padding: 4px 6px;
+    border-radius: 8px;
+    border: 1px solid #33465c;
+    background: #131a21;
     color: #9bb0c3;
-    max-width: 180px;
-    overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .jf-btn {
     font: inherit;
