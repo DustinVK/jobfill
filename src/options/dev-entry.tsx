@@ -18,7 +18,9 @@ import { createRouter } from '../background/router.js';
 import { ProtocolClient } from '../shared/messages.js';
 import { App } from './App.js';
 
-const channel = new MemoryChannel({ origin: location.origin });
+// The options app is an extension page; model that so privileged requests are allowed
+// (the router blocks vault.* from web-origin senders).
+const channel = new MemoryChannel({ origin: 'moz-extension://dev-options' });
 const env: BackgroundEnv = {
   storage: createWebStorage(),
   blobs: new MemoryBlobStore(),

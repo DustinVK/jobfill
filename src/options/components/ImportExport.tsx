@@ -11,9 +11,11 @@ import { formatValidationErrors, validateImport } from '../../shared/validate-im
 export function ImportExport({
   client,
   onVaultChanged,
+  confirmDiscard,
 }: {
   client: ProtocolClient;
   onVaultChanged: () => void;
+  confirmDiscard: () => boolean;
 }) {
   const [summary, setSummary] = useState<ImportSummary | undefined>();
   const [errorReport, setErrorReport] = useState<string | undefined>();
@@ -30,13 +32,15 @@ export function ImportExport({
       a.href = url;
       a.download = `jobfill-export-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
-      URL.revokeObjectURL(url);
+      // Revoking synchronously can cancel the download in Firefox; give it a beat.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } finally {
       setBusy(false);
     }
   };
 
   const doImport = async (file: File) => {
+    if (!confirmDiscard()) return;
     setBusy(true);
     setSummary(undefined);
     setErrorReport(undefined);
@@ -69,6 +73,7 @@ export function ImportExport({
       setWipeArmed(true);
       return;
     }
+    if (!confirmDiscard()) return;
     setBusy(true);
     try {
       await client.send({ t: 'vault.wipe', confirm: 'wipe' });

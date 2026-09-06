@@ -2,11 +2,24 @@
  * DataService — the single code path for all vault reads and writes (SPEC §6.1).
  * Lives in the background; everything else reaches it via the message protocol.
  * The codec boundary (SPEC §6.3) sits between this class and the storage adapter.
+ *
+ * Safety invariants (EEO gate, forced sensitivity, threshold sanity) are enforced HERE on
+ * every write path via `sanitizeVault` — no caller can bypass them.
+ *
+ * Note: `settings.encryption.enabled` is not yet honored — the codec is always Plain tonight;
+ * the unlock flow + codec switch is the post-v1 encryption UI milestone (SPEC §12).
  */
 import type { StorageAdapter } from '../shared/adapters/types.js';
 import type { PatchOp } from '../shared/messages.js';
-import type { InterchangeDocument, Vault } from '../shared/types.js';
-import { createEmptyVault, normalizeVault, nowIso } from '../shared/vault.js';
+import type { InterchangeDocument, StoredFile, Vault } from '../shared/types.js';
+import {
+  applyIncludeAll,
+  createEmptyVault,
+  normalizeVault,
+  nowIso,
+  recordIncludeAll,
+  sanitizeVault,
+} from '../shared/vault.js';
 import { exportVault, mergeAdd, type ImportSummary } from '../shared/interchange.js';
 import { PlainCodec, isStoredEnvelope, type VaultCodec } from './codecs.js';
 import type { FileStore } from './file-store.js';
@@ -15,6 +28,8 @@ const VAULT_KEY = 'vault';
 
 export class DataService {
   private cache: Vault | undefined;
+  /** In-flight cold load, memoized so concurrent readers share ONE vault object. */
+  private loading: Promise<Vault> | undefined;
   private writeChain: Promise<void> = Promise.resolve();
 
   constructor(
@@ -23,10 +38,18 @@ export class DataService {
     private readonly codec: VaultCodec = new PlainCodec(),
   ) {}
 
-  /** Loads (and caches) the vault; a missing or unreadable-but-absent store yields a fresh one. */
+  /** Loads (and caches) the vault; a missing store yields a fresh one. */
   async getVault(): Promise<Vault> {
     if (this.cache) return this.cache;
+    this.loading ??= this.load().finally(() => {
+      this.loading = undefined;
+    });
+    return this.loading;
+  }
+
+  private async load(): Promise<Vault> {
     const raw = await this.storage.local.get<unknown>(VAULT_KEY);
+    if (this.cache) return this.cache; // a writer won the race while we were reading
     if (raw === undefined) {
       const vault = createEmptyVault();
       await this.persist(vault);
@@ -56,6 +79,7 @@ export class DataService {
   /** Applies typed section replacements (see messages.ts PatchOp) and persists. */
   async patch(ops: PatchOp[]): Promise<Vault> {
     const vault = await this.getVault();
+    const includeAll = recordIncludeAll(vault);
     for (const op of ops) {
       switch (op.section) {
         case 'profile':
@@ -84,6 +108,9 @@ export class DataService {
           break;
       }
     }
+    // Versions that included everything keep including everything (new entities join them).
+    applyIncludeAll(vault, includeAll);
+    sanitizeVault(vault);
     normalizeVault(vault);
     await this.persist(vault);
     return vault;
@@ -110,6 +137,23 @@ export class DataService {
     return id;
   }
 
+  /** Adds file metadata to the vault through the serialized write path. */
+  async addFile(record: StoredFile): Promise<Vault> {
+    const vault = await this.getVault();
+    vault.files = [...vault.files, record];
+    await this.persist(vault);
+    return vault;
+  }
+
+  /** Removes file metadata (bytes deleted by the caller) and drops dangling version links. */
+  async removeFile(fileId: string): Promise<Vault> {
+    const vault = await this.getVault();
+    vault.files = vault.files.filter((f) => f.id !== fileId);
+    normalizeVault(vault);
+    await this.persist(vault);
+    return vault;
+  }
+
   /** Builds the interchange export with file bytes inlined (SPEC §6.4). */
   async export(): Promise<InterchangeDocument> {
     const vault = await this.getVault();
@@ -122,19 +166,23 @@ export class DataService {
   }
 
   /**
-   * merge-add import (SPEC §9.2). The document must already be schema-validated by the
-   * caller; this re-checks only the structural minimum before mutating.
+   * merge-add import (SPEC §9.2). Atomic with respect to the live vault: `mergeAdd` runs on
+   * a CLONE, so a mid-import failure (bad base64, malformed snippet) leaves the cached vault
+   * untouched. The clone becomes the vault only after it persists; file bytes are written
+   * after that — a byte-write failure leaves metadata whose `file.get` reports honestly.
    */
   async import(document: InterchangeDocument): Promise<{ vault: Vault; summary: ImportSummary }> {
     if (document.schemaVersion !== 1 || typeof document.profile !== 'object') {
       throw new Error('jobfill: import document failed structural check');
     }
-    const vault = await this.getVault();
-    const result = mergeAdd(vault, document);
+    const live = await this.getVault();
+    const working = structuredClone(live);
+    const result = mergeAdd(working, document);
+    sanitizeVault(result.vault);
+    await this.persist(result.vault);
     for (const payload of result.files) {
       await this.files.putBytes(payload.record.bytesRef, payload.bytes, payload.record.mime);
     }
-    await this.persist(result.vault);
     return { vault: result.vault, summary: result.summary };
   }
 }

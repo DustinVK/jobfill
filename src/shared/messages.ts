@@ -92,6 +92,16 @@ export interface ProtocolMap {
   'version.setActive': { req: { id: string }; res: { activeVersionId: string } };
 
   compose: { req: { key: CanonicalKey; opts?: ComposeOpts }; res: ComposedValue };
+  /** Everything the content-side classifier needs, in one round-trip per scan generation. */
+  'fill.context': {
+    req: NoPayload;
+    res: {
+      answers: Pick<AnswerEntry, 'id' | 'key' | 'question' | 'patterns' | 'sensitive'>[];
+      fillAllThreshold: number;
+      suggestThreshold: number;
+      activeVersionName: string;
+    };
+  };
   'snippets.search': {
     req: { q: string; scope?: 'all' | 'answers'; limit?: number };
     res: { results: SearchResult[] };

@@ -91,11 +91,7 @@ const fail = (reason: string): FillResult => ({ ok: false, verified: false, reas
 // Strategies
 // ---------------------------------------------------------------------------
 
-export function fillText(
-  field: ScannedField,
-  value: string,
-  snapshots: SnapshotStore,
-): FillResult {
+export function fillText(field: ScannedField, value: string, snapshots: SnapshotStore): FillResult {
   const el = field.element;
   if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
     return fail('not a text control');
@@ -247,7 +243,11 @@ export function undoElement(el: Element, snapshots: SnapshotStore): boolean {
       break;
     }
     case 'checkbox': {
-      if (el instanceof HTMLInputElement && prior.checked !== undefined && el.checked !== prior.checked) {
+      if (
+        el instanceof HTMLInputElement &&
+        prior.checked !== undefined &&
+        el.checked !== prior.checked
+      ) {
         el.click();
       }
       break;

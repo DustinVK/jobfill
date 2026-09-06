@@ -2,7 +2,7 @@
  * The options app (SPEC §8.1). All data flows through the ProtocolClient — the app never
  * touches storage directly. Edits are local until "Save"; save sends a section PatchOp.
  */
-import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ProtocolClient, PatchOp } from '../shared/messages.js';
 import type { Vault } from '../shared/types.js';
 import { ProfileEditor } from './components/ProfileEditor.js';
@@ -32,6 +32,22 @@ export function App({ client }: { client: ProtocolClient }) {
 
   useEffect(() => reload(), [reload]);
 
+  // Unsaved edits must never vanish silently (rung-1 review P1-10).
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    const guard = (e: BeforeUnloadEvent) => {
+      if (dirtyRef.current.size > 0) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', guard);
+    return () => window.removeEventListener('beforeunload', guard);
+  }, []);
+
+  const confirmDiscard = useCallback((): boolean => {
+    if (dirtyRef.current.size === 0) return true;
+    return window.confirm('You have unsaved changes that will be discarded. Continue?');
+  }, []);
+
   const edit = useCallback((section: PatchOp['section'], value: unknown) => {
     setVault((v) => (v ? ({ ...v, [section]: value } as Vault) : v));
     setDirty((d) => new Set(d).add(section));
@@ -53,10 +69,11 @@ export function App({ client }: { client: ProtocolClient }) {
 
   const setActive = useCallback(
     async (id: string) => {
+      if (!confirmDiscard()) return;
       await client.send({ t: 'version.setActive', id });
       reload();
     },
-    [client, reload],
+    [client, reload, confirmDiscard],
   );
 
   const dirtyLabel = useMemo(() => [...dirty].join(', '), [dirty]);
@@ -143,7 +160,9 @@ export function App({ client }: { client: ProtocolClient }) {
           </ul>
         </section>
       )}
-      {tab === 'Import / Export' && <ImportExport client={client} onVaultChanged={reload} />}
+      {tab === 'Import / Export' && (
+        <ImportExport client={client} onVaultChanged={reload} confirmDiscard={confirmDiscard} />
+      )}
     </main>
   );
 }

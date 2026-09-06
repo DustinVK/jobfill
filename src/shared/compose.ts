@@ -27,7 +27,6 @@ import {
   fullName,
   joinList,
   phoneAlternates,
-  render,
 } from './format.js';
 
 // ---------------------------------------------------------------------------
@@ -401,13 +400,34 @@ export function compose(
         };
       case 'summary':
         return composeSnippetField(work.summary, work.bullets, version, opts);
-      case 'bullets':
-        return composed(
-          render(
-            { paragraph: '', bullets: work.bullets.map((b) => resolveVariant(b, version)) },
-            'bullets',
-          ),
+      case 'bullets': {
+        // The budget ladder applies here too (SPEC §5.3: never silently exceed maxlength).
+        const result = fitToBudget(
+          {
+            preferred: {
+              paragraph: '',
+              bullets: work.bullets.map((b) => resolveVariant(b, version)),
+            },
+            short: work.bullets.some((b) => b.variants.some((v) => v.style === 'short'))
+              ? {
+                  paragraph: '',
+                  bullets: work.bullets.map(
+                    (b) =>
+                      b.variants.find((v) => v.style === 'short')?.text ??
+                      resolveVariant(b, version),
+                  ),
+                }
+              : undefined,
+          },
+          opts.renderer ?? 'bullets',
+          opts.maxLength,
         );
+        return {
+          value: result.text,
+          alternates: [],
+          ...(result.truncated ? { truncated: true } : {}),
+        };
+      }
     }
     return undefined;
   }
@@ -430,9 +450,15 @@ export function compose(
       case 'gpa':
         return composed(education.gpa ?? '');
       case 'startDate':
-        return composed(formatDate(education.startDate, dateFormat));
+        return composed(
+          formatDate(education.startDate, dateFormat),
+          alternateDates(education.startDate, dateFormat),
+        );
       case 'endDate':
-        return composed(formatEndDate(education.endDate, education.current, dateFormat));
+        return composed(
+          formatEndDate(education.endDate, education.current, dateFormat),
+          education.current ? [] : alternateDates(education.endDate, dateFormat),
+        );
     }
     return undefined;
   }

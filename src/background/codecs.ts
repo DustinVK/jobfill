@@ -36,6 +36,9 @@ export class VaultDecodeError extends Error {
 
 // SPEC §6.3: iterations ≥ 600_000.
 export const PBKDF2_ITERATIONS = 600_000;
+/** Decode-side bounds for envelope-supplied iteration counts. */
+export const MIN_DECODE_ITERATIONS = 100_000;
+export const MAX_DECODE_ITERATIONS = 5_000_000;
 
 export class PlainCodec implements VaultCodec {
   async encode(vault: Vault): Promise<StoredEnvelope> {
@@ -98,10 +101,20 @@ async function deriveKey(
   );
 }
 
+export interface DecodeBounds {
+  minIterations: number;
+  maxIterations: number;
+}
+
 export class AesGcmCodec implements VaultCodec {
   constructor(
     private readonly passphrase: string,
     private readonly iterations: number = PBKDF2_ITERATIONS,
+    /** Overridable so tests can run fast KDFs; production uses the strict defaults. */
+    private readonly bounds: DecodeBounds = {
+      minIterations: MIN_DECODE_ITERATIONS,
+      maxIterations: MAX_DECODE_ITERATIONS,
+    },
   ) {}
 
   async encode(vault: Vault): Promise<StoredEnvelope> {
@@ -127,8 +140,20 @@ export class AesGcmCodec implements VaultCodec {
     if (env.enc !== 'aes-gcm') {
       throw new VaultDecodeError('Envelope is not AES-GCM encrypted.', 'unsupported');
     }
-    if (env.kdf.alg !== 'PBKDF2-SHA256') {
-      throw new VaultDecodeError(`Unsupported KDF: ${String(env.kdf.alg)}`, 'unsupported');
+    if (env.kdf === null || typeof env.kdf !== 'object' || env.kdf.alg !== 'PBKDF2-SHA256') {
+      throw new VaultDecodeError(`Unsupported KDF: ${String(env.kdf?.alg)}`, 'unsupported');
+    }
+    // Bounds on envelope-supplied iterations: a floor so a doctored export can't silently
+    // weaken the KDF, a ceiling so one can't freeze the background page.
+    if (
+      typeof env.kdf.iterations !== 'number' ||
+      env.kdf.iterations < this.bounds.minIterations ||
+      env.kdf.iterations > this.bounds.maxIterations
+    ) {
+      throw new VaultDecodeError(
+        `KDF iteration count ${String(env.kdf.iterations)} outside accepted bounds`,
+        'unsupported',
+      );
     }
     let salt: Uint8Array;
     let iv: Uint8Array;
@@ -169,7 +194,12 @@ export function isStoredEnvelope(value: unknown): value is StoredEnvelope {
   if (env.v !== 1) return false;
   if (env.enc === 'none') return 'data' in env;
   if (env.enc === 'aes-gcm') {
-    return typeof env.iv === 'string' && typeof env.ct === 'string' && typeof env.kdf === 'object';
+    return (
+      typeof env.iv === 'string' &&
+      typeof env.ct === 'string' &&
+      typeof env.kdf === 'object' &&
+      env.kdf !== null
+    );
   }
   return false;
 }

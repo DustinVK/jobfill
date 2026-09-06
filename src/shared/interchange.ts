@@ -29,8 +29,12 @@ import type {
   Vault,
   WorkExperience,
 } from './types.js';
-import { ALWAYS_SENSITIVE_ANSWER_KEYS, EEO_ANSWER_KEYS } from './types.js';
-import { newId, normalizeVault, nowIso } from './vault.js';
+import {
+  ALWAYS_SENSITIVE_ANSWER_KEYS,
+  DEFAULT_SENSITIVE_ANSWER_KEYS,
+  EEO_ANSWER_KEYS,
+} from './types.js';
+import { applyIncludeAll, newId, normalizeVault, nowIso, recordIncludeAll } from './vault.js';
 
 // ---------------------------------------------------------------------------
 // Materialization (loose → strict)
@@ -123,6 +127,9 @@ function materializeCertification(loose: LooseCertification): Certification {
 function materializeAnswer(loose: LooseAnswerEntry): AnswerEntry {
   const forcedSensitive =
     loose.key !== undefined && ALWAYS_SENSITIVE_ANSWER_KEYS.includes(loose.key);
+  // Default-sensitive keys (salary) start sensitive unless the file explicitly says otherwise.
+  const defaultSensitive =
+    loose.key !== undefined && DEFAULT_SENSITIVE_ANSWER_KEYS.includes(loose.key);
   return {
     id: loose.id ?? newId(),
     key: loose.key,
@@ -133,7 +140,7 @@ function materializeAnswer(loose: LooseAnswerEntry): AnswerEntry {
     choiceSynonyms: loose.choiceSynonyms,
     variants: loose.variants?.map(materializeVariant),
     // Forced-sensitive keys stay sensitive no matter what the import file claims (SPEC §4.3).
-    sensitive: forcedSensitive || (loose.sensitive ?? false),
+    sensitive: forcedSensitive || (loose.sensitive ?? defaultSensitive),
   };
 }
 
@@ -306,16 +313,9 @@ export function mergeAdd(vault: Vault, doc: InterchangeDocument): ImportResult {
     skipped: [],
   };
 
-  // Versions whose include lists cover *everything* of a type before the import keep that
-  // "everything" semantics afterwards (the auto-created default is "Everything / impact-first",
-  // SPEC §3.1); curated subsets are left untouched. Recorded before mutation.
-  const includesAll = vault.versions.map((v) => ({
-    version: v,
-    work: vault.work.every((w) => v.include.workIds.includes(w.id)),
-    education: vault.education.every((e) => v.include.educationIds.includes(e.id)),
-    projects: vault.projects.every((pr) => v.include.projectIds.includes(pr.id)),
-    certifications: vault.certifications.every((c) => v.include.certificationIds.includes(c.id)),
-  }));
+  // Versions that included everything keep including everything after new entities land
+  // (preserves the auto-created "Everything / impact-first" semantics, SPEC §3.1).
+  const includeAll = recordIncludeAll(vault);
 
   mergeProfile(vault, doc, summary);
 
@@ -413,28 +413,53 @@ export function mergeAdd(vault: Vault, doc: InterchangeDocument): ImportResult {
   }
 
   // Extend the "everything" versions with the newly added entities.
-  for (const entry of includesAll) {
-    const inc = entry.version.include;
-    if (entry.work) inc.workIds = vault.work.map((w) => w.id);
-    if (entry.education) inc.educationIds = vault.education.map((e) => e.id);
-    if (entry.projects) inc.projectIds = vault.projects.map((p) => p.id);
-    if (entry.certifications) inc.certificationIds = vault.certifications.map((c) => c.id);
-  }
+  applyIncludeAll(vault, includeAll);
 
-  const existingVersionNames = new Set(vault.versions.map((v) => v.name.toLowerCase()));
+  // Versions: match by id first, then by name. A collision MERGES the incoming configuration
+  // into the existing version instead of dropping it — otherwise export→wipe→import silently
+  // loses variantPrefs/stylePriority because the wiped vault re-creates the default version
+  // under the same name (rung-1 review P1-5).
   for (const loose of doc.versions ?? []) {
-    if (existingVersionNames.has(loose.name.toLowerCase())) {
-      summary.skipped.push(`version "${loose.name}" already exists`);
+    const existing =
+      (loose.id && vault.versions.find((v) => v.id === loose.id)) ||
+      vault.versions.find((v) => v.name.toLowerCase() === loose.name.toLowerCase());
+    if (existing) {
+      mergeVersionConfig(existing, loose);
+      summary.skipped.push(`version "${loose.name}" already exists — configuration merged in`);
       continue;
     }
-    const version = materializeVersion(loose, vault);
-    vault.versions.push(version);
-    existingVersionNames.add(version.name.toLowerCase());
+    vault.versions.push(materializeVersion(loose, vault));
     summary.added.versions++;
   }
 
   vault.updatedAt = nowIso();
   return { vault: normalizeVault(vault), files, summary };
+}
+
+/** Copies an incoming version's configuration onto an existing same-identity version. */
+function mergeVersionConfig(existing: ResumeVersion, loose: LooseResumeVersion): void {
+  if (loose.description !== undefined) existing.description = loose.description;
+  if (loose.stylePriority !== undefined) existing.stylePriority = loose.stylePriority;
+  if (loose.variantPrefs !== undefined) {
+    existing.variantPrefs = { ...existing.variantPrefs, ...loose.variantPrefs };
+  }
+  if (loose.titlePrefs !== undefined) {
+    existing.titlePrefs = { ...existing.titlePrefs, ...loose.titlePrefs };
+  }
+  if (loose.answerOverrides !== undefined) {
+    existing.answerOverrides = { ...existing.answerOverrides, ...loose.answerOverrides };
+  }
+  if (loose.fileId !== undefined) existing.fileId = loose.fileId;
+  if (loose.coverLetterFileId !== undefined) existing.coverLetterFileId = loose.coverLetterFileId;
+  if (loose.include !== undefined) {
+    existing.include = {
+      workIds: loose.include.workIds ?? existing.include.workIds,
+      educationIds: loose.include.educationIds ?? existing.include.educationIds,
+      projectIds: loose.include.projectIds ?? existing.include.projectIds,
+      certificationIds: loose.include.certificationIds ?? existing.include.certificationIds,
+      skills: loose.include.skills ?? existing.include.skills,
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -468,7 +493,8 @@ export function exportVault(vault: Vault, fileBytes: Map<string, Uint8Array>): I
       base64: encodeBase64(bytes),
     });
   }
-  return {
+  // structuredClone: the document must never alias the live vault's arrays.
+  return structuredClone({
     $schema: 'https://occamsgarage.com/jobfill/import.schema.json',
     schemaVersion: 1,
     profile: vault.profile,
@@ -479,5 +505,5 @@ export function exportVault(vault: Vault, fileBytes: Map<string, Uint8Array>): I
     answers: vault.answers,
     versions: vault.versions,
     files,
-  };
+  });
 }

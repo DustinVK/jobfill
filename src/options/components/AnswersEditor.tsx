@@ -24,10 +24,12 @@ function AnswerRow({
   entry,
   onChange,
   onRemove,
+  eeoAllowed,
 }: {
   entry: AnswerEntry;
   onChange: (next: AnswerEntry) => void;
   onRemove: () => void;
+  eeoAllowed: boolean;
 }) {
   const set = <K extends keyof AnswerEntry>(key: K, value: AnswerEntry[K]) =>
     onChange({ ...entry, [key]: value });
@@ -50,11 +52,13 @@ function AnswerRow({
             }}
           >
             <option value="">custom question</option>
-            {WELL_KNOWN_ANSWER_KEYS.map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
+            {WELL_KNOWN_ANSWER_KEYS.filter((k) => eeoAllowed || !EEO_ANSWER_KEYS.includes(k)).map(
+              (k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ),
+            )}
           </select>
         </label>
         <label class="field">
@@ -198,6 +202,7 @@ export function AnswersEditor({
         <AnswerRow
           key={entry.id}
           entry={entry}
+          eeoAllowed={false}
           onChange={(next) => onChange(answers.map((a) => (a.id === next.id ? next : a)))}
           onRemove={() => onChange(answers.filter((a) => a.id !== entry.id))}
         />
@@ -235,6 +240,7 @@ export function AnswersEditor({
               <AnswerRow
                 key={entry.id}
                 entry={entry}
+                eeoAllowed={true}
                 onChange={(next) => onChange(answers.map((a) => (a.id === next.id ? next : a)))}
                 onRemove={() => onChange(answers.filter((a) => a.id !== entry.id))}
               />

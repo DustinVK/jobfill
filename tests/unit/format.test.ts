@@ -141,8 +141,12 @@ describe('render', () => {
   it('paragraph+bullets separates with a blank line', () => {
     expect(render(input, 'paragraph+bullets')).toBe('Summary here.\n\n• Did X\n• Did Y.');
   });
-  it('plain-join terminates sentences and joins with spaces', () => {
-    expect(render(input, 'plain-join')).toBe('Did X. Did Y.');
+  it('plain-join keeps the paragraph and sentence-joins everything', () => {
+    expect(render(input, 'plain-join')).toBe('Summary here. Did X. Did Y.');
+    // A paragraph-only snippet must not vanish on newline-stripping sites (review P2).
+    expect(render({ paragraph: 'Only a summary', bullets: [] }, 'plain-join')).toBe(
+      'Only a summary.',
+    );
   });
   it('supports a custom bullet prefix', () => {
     expect(render({ ...input, bulletPrefix: '- ' }, 'bullets')).toBe('- Did X\n- Did Y.');
@@ -249,5 +253,43 @@ describe('choice matching (SPEC §5.4)', () => {
   it('boolean targets read naturally', () => {
     expect(booleanChoiceTargets(true)).toContain('yes');
     expect(booleanChoiceTargets(false)).toContain('no');
+  });
+});
+
+describe('matchChoice — real ATS label sets (rung-1 review P0 regressions)', () => {
+  it('sponsorship=false never selects the "Yes … now or in the future" option', () => {
+    const options = [
+      'Yes, I will require sponsorship now or in the future',
+      'No, I will not require sponsorship now or in the future',
+    ];
+    const noMatch = matchChoice(options, booleanChoiceTargets(false));
+    expect(noMatch?.index).toBe(1);
+    const yesMatch = matchChoice(options, booleanChoiceTargets(true));
+    expect(yesMatch?.index).toBe(0);
+  });
+
+  it('work authorization: "i am not" style options resolve by polarity', () => {
+    const options = ['I am authorized to work in the US', 'I am not authorized to work in the US'];
+    expect(matchChoice(options, booleanChoiceTargets(true))?.index).toBe(0);
+    expect(matchChoice(options, booleanChoiceTargets(false))?.index).toBe(1);
+  });
+
+  it('plain Yes/No selects', () => {
+    expect(matchChoice(['Yes', 'No'], booleanChoiceTargets(false))?.index).toBe(1);
+    expect(matchChoice(['Yes', 'No'], booleanChoiceTargets(true))?.index).toBe(0);
+  });
+
+  it('"no" does not match inside "now" (token boundaries)', () => {
+    expect(matchChoice(['Starting now'], ['no'])).toBeUndefined();
+  });
+
+  it('veteran self-id labels', () => {
+    const options = [
+      'I identify as one or more of the classifications of a protected veteran',
+      'I am not a protected veteran',
+      'I decline to self identify',
+    ];
+    expect(matchChoice(options, ['i am not a protected veteran'])?.index).toBe(1);
+    expect(matchChoice(options, ['decline to self identify', 'decline'])?.index).toBe(2);
   });
 });

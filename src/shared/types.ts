@@ -223,13 +223,17 @@ export const EEO_ANSWER_KEYS: readonly WellKnownAnswerKey[] = [
   'disabilityStatus',
 ];
 
-/** Keys that are always sensitive regardless of what an import file claims. */
+/** Keys that are ALWAYS sensitive — not unmarkable by the user or an import file. */
 export const ALWAYS_SENSITIVE_ANSWER_KEYS: readonly WellKnownAnswerKey[] = [
   ...EEO_ANSWER_KEYS,
   'criminalDisclosure',
-  // Open question 3 in SPEC §13, decided "yes": sensitive by default, user can unmark it.
-  'salaryExpectation',
 ];
+
+/**
+ * SPEC §13 open question 3, decided "leaning yes": salary starts sensitive (excluded from
+ * fill-all) but the user may unmark it — per §7.9 "salary if the user marks it".
+ */
+export const DEFAULT_SENSITIVE_ANSWER_KEYS: readonly WellKnownAnswerKey[] = ['salaryExpectation'];
 
 export type AnswerKind = 'boolean' | 'choice' | 'text' | 'number' | 'date';
 export type AnswerValue = string | number | boolean;

@@ -43,10 +43,16 @@ export function ProfileEditor({
 }) {
   const set = <K extends keyof Profile>(key: K, value: Profile[K]) =>
     onChange({ ...profile, [key]: value });
+  // Required scalars (firstName/lastName) keep '' when cleared — their types are `string`,
+  // not `string | undefined`; optional ones drop to undefined so exports stay clean.
+  const REQUIRED = new Set(['identity.firstName', 'identity.lastName']);
   const setIn = (section: 'identity' | 'address' | 'links', key: string, value: string) =>
     onChange({
       ...profile,
-      [section]: { ...(profile[section] as Scalars), [key]: value || undefined },
+      [section]: {
+        ...(profile[section] as Scalars),
+        [key]: REQUIRED.has(`${section}.${key}`) ? value : value || undefined,
+      },
     });
 
   const emptySummary = (): Snippet => {

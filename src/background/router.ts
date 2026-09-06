@@ -15,6 +15,7 @@ import {
 } from '../shared/messages.js';
 import type { ComposeOpts } from '../shared/compose.js';
 import { compose } from '../shared/compose.js';
+import { DATE_FORMATS, PHONE_FORMATS, RENDERERS } from '../shared/format.js';
 import { buildSearchIndex, searchIndex } from '../shared/search.js';
 import type { InterchangeDocument, StoredFileKind } from '../shared/types.js';
 import { validateImport, formatValidationErrors } from '../shared/validate-import.js';
@@ -36,13 +37,41 @@ export interface RouterDeps {
 
 const FILE_KINDS: readonly StoredFileKind[] = ['resume', 'coverLetter', 'other'];
 
+/**
+ * Requests that expose or mutate the whole vault. Only extension contexts (options, popup,
+ * background — origin `moz-extension:` or absent) may issue them; content scripts running in
+ * web pages get the narrow fill-time surface only (SPEC §8.3: vault.get is a redacted slice
+ * for content — tonight the slice for web contexts is "nothing", which is stricter).
+ */
+const PRIVILEGED_TYPES = new Set([
+  'vault.get',
+  'vault.patch',
+  'vault.wipe',
+  'vault.export',
+  'vault.import',
+  'file.add',
+  'file.delete',
+  'file.list',
+]);
+
+function isPrivilegedSender(sender: MessageSender): boolean {
+  if (sender.origin === undefined) return true; // extension pages under structured-clone messaging
+  return sender.origin.startsWith('moz-extension:');
+}
+
 export function createRouter(deps: RouterDeps): MessageHandler {
   const files = deps.files ?? new FileStore(deps.env.blobs);
   const data = deps.data ?? new DataService(deps.env.storage, files);
 
-  return async (message: unknown, _sender: MessageSender): Promise<Envelope<unknown>> => {
+  return async (message: unknown, sender: MessageSender): Promise<Envelope<unknown>> => {
     if (!isRequest(message)) {
       return { ok: false, error: 'jobfill: malformed request' };
+    }
+    if (PRIVILEGED_TYPES.has(message.t) && !isPrivilegedSender(sender)) {
+      return {
+        ok: false,
+        error: `jobfill: "${message.t}" is not available to content scripts`,
+      };
     }
     try {
       return { ok: true, data: await handle(message, data, files) };
@@ -105,12 +134,30 @@ async function handle(
     // --- composition & search ----------------------------------------------
     case 'compose': {
       const key = expectNonEmptyString(message.key, 'key');
-      const opts =
-        message.opts === undefined ? {} : (expectObject(message.opts, 'opts') as ComposeOpts);
+      const opts = sanitizeComposeOpts(
+        message.opts === undefined ? {} : expectObject(message.opts, 'opts'),
+      );
       const vault = await data.getVault();
       const value = compose(vault, key, opts);
       if (value === undefined) throw new Error(`jobfill: cannot compose key "${key}"`);
       return value;
+    }
+
+    case 'fill.context': {
+      const vault = await data.getVault();
+      const active = vault.versions.find((v) => v.id === vault.settings.activeVersionId);
+      return {
+        answers: vault.answers.map((a) => ({
+          id: a.id,
+          key: a.key,
+          question: a.question,
+          patterns: a.patterns,
+          sensitive: a.sensitive,
+        })),
+        fillAllThreshold: vault.settings.fillAllThreshold,
+        suggestThreshold: vault.settings.suggestThreshold,
+        activeVersionName: active?.name ?? 'Default',
+      };
     }
 
     case 'snippets.search': {
@@ -137,9 +184,7 @@ async function handle(
       const mime = expectNonEmptyString(message.mime, 'mime');
       const bytes = expectArrayBuffer(message.bytes, 'bytes');
       const record = await files.add({ kind, name, mime, bytes });
-      const vault = await data.getVault();
-      vault.files.push(record);
-      await data.patch([]); // persist via the single write path (no section change needed)
+      await data.addFile(record);
       return { file: record };
     }
 
@@ -160,8 +205,7 @@ async function handle(
       const record = vault.files.find((f) => f.id === fileId);
       if (record) {
         await files.delete(record);
-        vault.files = vault.files.filter((f) => f.id !== fileId);
-        await data.patch([]); // persist + normalize (drops dangling version.fileId links)
+        await data.removeFile(fileId);
       }
       return { files: (await data.getVault()).files };
     }
@@ -169,6 +213,32 @@ async function handle(
     default:
       throw new Error(`jobfill: unknown request "${message.t}"`);
   }
+}
+
+/** Compose opts arrive from content scripts — coerce to safe shapes, drop garbage. */
+function sanitizeComposeOpts(raw: Record<string, unknown>): ComposeOpts {
+  const opts: ComposeOpts = {};
+  if (typeof raw.maxLength === 'number' && Number.isFinite(raw.maxLength) && raw.maxLength > 0) {
+    opts.maxLength = Math.floor(raw.maxLength);
+  }
+  if (typeof raw.multiline === 'boolean') opts.multiline = raw.multiline;
+  if (typeof raw.rows === 'number' && Number.isFinite(raw.rows)) opts.rows = raw.rows;
+  if (typeof raw.renderer === 'string' && (RENDERERS as readonly string[]).includes(raw.renderer)) {
+    opts.renderer = raw.renderer as ComposeOpts['renderer'];
+  }
+  if (
+    typeof raw.phoneFormat === 'string' &&
+    (PHONE_FORMATS as readonly string[]).includes(raw.phoneFormat)
+  ) {
+    opts.phoneFormat = raw.phoneFormat as ComposeOpts['phoneFormat'];
+  }
+  if (
+    typeof raw.dateFormat === 'string' &&
+    (DATE_FORMATS as readonly string[]).includes(raw.dateFormat)
+  ) {
+    opts.dateFormat = raw.dateFormat as ComposeOpts['dateFormat'];
+  }
+  return opts;
 }
 
 export type { InterchangeDocument };

@@ -213,9 +213,14 @@ export function render(input: RenderInput, renderer: Renderer): string {
       const list = bullets.map((b) => `${prefix}${b}`).join('\n');
       return [input.paragraph, list].filter((part) => part.length > 0).join('\n\n');
     }
-    case 'plain-join':
-      // For sites that strip newlines: sentence-joined, each bullet terminated.
-      return bullets.map((b) => (/[.!?]$/.test(b.trim()) ? b.trim() : `${b.trim()}.`)).join(' ');
+    case 'plain-join': {
+      // For sites that strip newlines: paragraph + bullets sentence-joined.
+      const sentences = [input.paragraph, ...bullets]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => (/[.!?]$/.test(part) ? part : `${part}.`));
+      return sentences.join(' ');
+    }
     case 'paragraph':
     default:
       return input.paragraph;
@@ -265,7 +270,7 @@ export function truncateAtWord(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   const slice = text.slice(0, maxLength);
   const lastBreak = Math.max(slice.lastIndexOf(' '), slice.lastIndexOf('\n'));
-  // If there is no break in the last 25% of the budget, a hard cut beats returning almost nothing.
+  // If there is no break in the last half of the budget, a hard cut beats returning almost nothing.
   const cut = lastBreak > maxLength * 0.5 ? lastBreak : maxLength;
   return slice.slice(0, cut).trimEnd();
 }
@@ -284,20 +289,11 @@ export function fitToBudget(
     return { text: base, truncated: false, droppedBullets: 0, usedShortVariants: false };
   }
 
-  const attempts: { input: RenderInput; short: boolean }[] = [
-    { input: candidates.preferred, short: false },
-  ];
-  if (candidates.short) attempts.push({ input: candidates.short, short: true });
-
-  for (const attempt of attempts.slice().reverse()) {
-    const whole = render(attempt.input, renderer);
+  // Preferred already overflowed above; only the short-variant candidate can rescue whole.
+  if (candidates.short) {
+    const whole = render(candidates.short, renderer);
     if (whole.length <= maxLength) {
-      return {
-        text: whole,
-        truncated: false,
-        droppedBullets: 0,
-        usedShortVariants: attempt.short,
-      };
+      return { text: whole, truncated: false, droppedBullets: 0, usedShortVariants: true };
     }
   }
 
@@ -344,11 +340,47 @@ export interface ChoiceMatch {
   score: number;
 }
 
+const NEGATION_TOKENS = new Set([
+  'not',
+  'no',
+  'never',
+  "don't",
+  "won't",
+  'dont',
+  'wont',
+  'decline',
+]);
+
+function tokensOf(normalized: string): string[] {
+  return normalized.split(' ').filter(Boolean);
+}
+
+function hasNegation(tokens: string[]): boolean {
+  return tokens.some((t) => NEGATION_TOKENS.has(t));
+}
+
+/** True when `needle` appears as a CONTIGUOUS token subsequence of `haystack`. */
+function tokenSequenceIndex(haystack: string[], needle: string[]): number {
+  if (needle.length === 0 || needle.length > haystack.length) return -1;
+  outer: for (let i = 0; i <= haystack.length - needle.length; i++) {
+    for (let j = 0; j < needle.length; j++) {
+      if (haystack[i + j] !== needle[j]) continue outer;
+    }
+    return i;
+  }
+  return -1;
+}
+
 /**
- * Matches a target label set against a widget's option labels.
- * Exact normalized equality scores 1; whole-phrase containment scores by length ratio, so
- * "No" does not beat "No, I will not require sponsorship" for the target "no sponsorship".
- * Returns undefined when nothing clears `threshold` — the caller drops to `suggest` (SPEC §5.4).
+ * Matches a target label set against a widget's option labels (SPEC §5.4).
+ *
+ * All containment is at TOKEN boundaries — "no" never matches inside "now", so
+ * `sponsorship=false` cannot select "Yes, I will require sponsorship now or in the future".
+ * Scoring: exact = 1 · target as leading tokens of the option = strong (the "No, I will not
+ * require sponsorship…" pattern) · contiguous containment = medium · token overlap = weak.
+ * A negation-polarity mismatch between the target set and an option halves that option's
+ * score, so "I am authorized" beats "I am NOT authorized" for affirmative targets.
+ * Returns undefined when nothing clears `threshold` — the caller drops to `suggest`.
  */
 export function matchChoice(
   optionLabels: string[],
@@ -357,36 +389,50 @@ export function matchChoice(
 ): ChoiceMatch | undefined {
   const normalizedTargets = targets.map(normalizeChoice).filter((t) => t.length > 0);
   if (normalizedTargets.length === 0) return undefined;
+  const targetTokenSets = normalizedTargets.map(tokensOf);
+  const targetsNegate = targetTokenSets.some(hasNegation);
 
   let best: ChoiceMatch | undefined;
   optionLabels.forEach((label, index) => {
     const option = normalizeChoice(label);
     if (option.length === 0) return;
-    for (const target of normalizedTargets) {
+    const optionTokens = tokensOf(option);
+    const optionNegates = hasNegation(optionTokens);
+
+    let optionBest = 0;
+    for (const targetTokens of targetTokenSets) {
+      const target = targetTokens.join(' ');
       let score: number;
       if (option === target) {
         score = 1;
-      } else if (option.includes(target)) {
-        score = 0.6 + 0.3 * (target.length / option.length);
-      } else if (target.includes(option)) {
-        score = 0.6 + 0.3 * (option.length / target.length);
       } else {
-        const overlap = tokenOverlap(option, target);
-        score = overlap * 0.7;
+        const at = tokenSequenceIndex(optionTokens, targetTokens);
+        const reverseAt = tokenSequenceIndex(targetTokens, optionTokens);
+        const ratio = targetTokens.length / optionTokens.length;
+        if (at === 0) {
+          score = 0.75 + 0.2 * ratio; // option *leads* with the target ("No, I will not …")
+        } else if (at > 0) {
+          score = 0.55 + 0.35 * ratio;
+        } else if (reverseAt >= 0) {
+          score = 0.55 + 0.35 * (optionTokens.length / targetTokens.length);
+        } else {
+          const targetSet = new Set(targetTokens);
+          const hits = optionTokens.filter((t) => targetSet.has(t)).length;
+          score = (hits / Math.max(targetTokens.length, optionTokens.length)) * 0.7;
+        }
       }
-      if (!best || score > best.score) best = { index, score };
+      if (score > optionBest) optionBest = score;
+    }
+
+    // Polarity guard: an option whose negation disagrees with the target set is suspect.
+    if (optionBest < 1 && optionNegates !== targetsNegate) optionBest *= 0.5;
+
+    if (optionBest > 0 && (!best || optionBest > best.score)) {
+      best = { index, score: optionBest };
     }
   });
 
   return best && best.score >= threshold ? best : undefined;
-}
-
-function tokenOverlap(a: string, b: string): number {
-  const aTokens = new Set(a.split(' ').filter(Boolean));
-  const bTokens = b.split(' ').filter(Boolean);
-  if (aTokens.size === 0 || bTokens.length === 0) return 0;
-  const hits = bTokens.filter((token) => aTokens.has(token)).length;
-  return hits / Math.max(aTokens.size, bTokens.length);
 }
 
 /** Boolean answers get a conventional label set before `choiceSynonyms` are appended. */

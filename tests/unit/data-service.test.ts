@@ -14,9 +14,11 @@ import { validateImport } from '../../src/shared/validate-import.js';
 import type { InterchangeDocument, Vault } from '../../src/shared/types.js';
 import { DEFAULT_VERSION_NAME } from '../../src/shared/vault.js';
 import sampleImport from '../../ai/examples/sample-import.json';
+// (regression suite below needs these too)
 
 function makeStack() {
-  const channel = new MemoryChannel();
+  // Options-page context: privileged sender (vault.* is blocked for web-origin senders).
+  const channel = new MemoryChannel({ origin: 'moz-extension://test' });
   const storage = createMemoryStorage();
   const blobs = new MemoryBlobStore();
   const env: BackgroundEnv = {
@@ -213,14 +215,46 @@ describe('import → export → wipe → import round-trip (DoD-1)', () => {
     expect(entry?.sensitive).toBe(true);
   });
 
-  it('salaryExpectation is forced sensitive on import', async () => {
+  it('salaryExpectation defaults sensitive but an explicit user choice is respected', async () => {
+    // SPEC §7.9: "salary if the user marks it" — default on, unmarkable (unlike EEO).
     const { client } = makeStack();
-    const doc = JSON.parse(JSON.stringify(sampleImport)) as InterchangeDocument;
-    doc.answers = doc.answers?.map((a) =>
+    const explicitOff = JSON.parse(JSON.stringify(sampleImport)) as InterchangeDocument;
+    explicitOff.answers = explicitOff.answers?.map((a) =>
       a.key === 'salaryExpectation' ? { ...a, sensitive: false } : a,
     );
+    const offResult = await client.send({ t: 'vault.import', document: explicitOff });
+    expect(offResult.vault.answers.find((a) => a.key === 'salaryExpectation')?.sensitive).toBe(
+      false,
+    );
+
+    const { client: client2 } = makeStack();
+    const unspecified = JSON.parse(JSON.stringify(sampleImport)) as InterchangeDocument;
+    unspecified.answers = unspecified.answers?.map((a) => {
+      if (a.key !== 'salaryExpectation') return a;
+      const { sensitive: _sensitive, ...rest } = a;
+      return rest as typeof a;
+    });
+    const defaultResult = await client2.send({ t: 'vault.import', document: unspecified });
+    expect(defaultResult.vault.answers.find((a) => a.key === 'salaryExpectation')?.sensitive).toBe(
+      true,
+    );
+  });
+
+  it('criminalDisclosure sensitivity cannot be turned off by an import file', async () => {
+    const { client } = makeStack();
+    const doc = JSON.parse(JSON.stringify(sampleImport)) as InterchangeDocument;
+    doc.answers = [
+      ...(doc.answers ?? []),
+      {
+        key: 'criminalDisclosure',
+        question: 'Have you ever been convicted of a felony?',
+        kind: 'boolean',
+        value: false,
+        sensitive: false,
+      },
+    ];
     const result = await client.send({ t: 'vault.import', document: doc });
-    expect(result.vault.answers.find((a) => a.key === 'salaryExpectation')?.sensitive).toBe(true);
+    expect(result.vault.answers.find((a) => a.key === 'criminalDisclosure')?.sensitive).toBe(true);
   });
 
   it('rejects invalid documents with path-precise errors', async () => {
@@ -256,5 +290,195 @@ describe('files over the protocol', () => {
     const after = await client.send({ t: 'vault.get' });
     expect(after.vault.versions.every((v) => v.fileId === undefined)).toBe(true);
     await expect(client.send({ t: 'file.get', fileId: file.id })).rejects.toThrow(/no file/);
+  });
+});
+
+describe('rung-1 review regressions', () => {
+  it('content-script senders are refused vault-level requests (P1-8)', async () => {
+    const channel = new MemoryChannel({ tabId: 3, frameId: 0, origin: 'https://jobs.example.com' });
+    const storage = createMemoryStorage();
+    const env = {
+      storage,
+      blobs: new MemoryBlobStore(),
+      server: channel,
+      scripting: createMemoryScripting(),
+      runtime: createMemoryRuntime(),
+    };
+    env.server.serve(createRouter({ env }));
+    const client = new ProtocolClient(channel);
+    await expect(client.send({ t: 'vault.get' })).rejects.toThrow(/not available to content/);
+    await expect(client.send({ t: 'vault.export' })).rejects.toThrow(/not available/);
+    // The narrow fill-time surface stays open.
+    await expect(client.send({ t: 'fill.context' })).resolves.toBeDefined();
+    await expect(client.send({ t: 'ping' })).resolves.toMatchObject({ pong: true });
+  });
+
+  it('EEO answers cannot enter the vault via vault.patch while the gate is off (P1-2)', async () => {
+    const { client } = makeStack();
+    const { vault } = await client.send({ t: 'vault.get' });
+    const patched = await client.send({
+      t: 'vault.patch',
+      ops: [
+        {
+          section: 'answers',
+          value: [
+            {
+              id: 'evil',
+              key: 'gender',
+              question: 'Gender',
+              patterns: [],
+              kind: 'text',
+              value: 'x',
+              sensitive: false,
+            },
+          ],
+        },
+      ],
+    });
+    expect(patched.vault.answers).toHaveLength(0);
+    expect(vault.settings.storeEeoAnswers).toBe(false);
+
+    // With the gate on, the entry lands but is forced sensitive.
+    await client.send({
+      t: 'vault.patch',
+      ops: [{ section: 'settings', value: { ...vault.settings, storeEeoAnswers: true } }],
+    });
+    const second = await client.send({
+      t: 'vault.patch',
+      ops: [
+        {
+          section: 'answers',
+          value: [
+            {
+              id: 'ok',
+              key: 'gender',
+              question: 'Gender',
+              patterns: [],
+              kind: 'text',
+              value: 'x',
+              sensitive: false,
+            },
+          ],
+        },
+      ],
+    });
+    expect(second.vault.answers).toHaveLength(1);
+    expect(second.vault.answers[0]?.sensitive).toBe(true);
+  });
+
+  it('garbage settings values are clamped on patch (P1-3)', async () => {
+    const { client } = makeStack();
+    const { vault } = await client.send({ t: 'vault.get' });
+    const patched = await client.send({
+      t: 'vault.patch',
+      ops: [
+        {
+          section: 'settings',
+          value: { ...vault.settings, fillAllThreshold: -5, suggestThreshold: Number.NaN },
+        },
+      ],
+    });
+    expect(patched.vault.settings.fillAllThreshold).toBe(0);
+    expect(patched.vault.settings.suggestThreshold).toBe(0.5);
+  });
+
+  it('a failed import leaves the live vault untouched (P1-4 atomicity)', async () => {
+    const { client } = makeStack();
+    await client.send({
+      t: 'vault.import',
+      document: sampleImport as unknown as InterchangeDocument,
+    });
+    const before = await client.send({ t: 'vault.get' });
+
+    // Duplicate work key + a NEW valid work entry + malformed variant deep inside: the deep
+    // failure must roll back everything from this import.
+    const bad = JSON.parse(JSON.stringify(sampleImport)) as InterchangeDocument;
+    bad.work = [
+      {
+        company: 'Rollback Test Co',
+        title: 'Engineer',
+        startDate: '2020-01',
+        summary: { variants: [] }, // schema requires minItems 1 — bypass schema, hit mergeAdd
+      },
+    ] as never;
+    await expect(client.send({ t: 'vault.import', document: bad })).rejects.toThrow();
+    const after = await client.send({ t: 'vault.get' });
+    expect(after.vault.work.map((w) => w.company)).toEqual(before.vault.work.map((w) => w.company));
+    expect(after.vault.work.some((w) => w.company === 'Rollback Test Co')).toBe(false);
+  });
+
+  it('export → wipe → import preserves version configuration (P1-5)', async () => {
+    const { client } = makeStack();
+    const imported = await client.send({
+      t: 'vault.import',
+      document: sampleImport as unknown as InterchangeDocument,
+    });
+    // Tune the default version so the round-trip has config to lose.
+    const tuned = imported.vault.versions.map((v, i) =>
+      i === 0
+        ? {
+            ...v,
+            description: 'my tuned lens',
+            stylePriority: ['responsibilities', 'long'],
+            variantPrefs: { 'snip-1': 'var-9' },
+          }
+        : v,
+    );
+    await client.send({ t: 'vault.patch', ops: [{ section: 'versions', value: tuned }] });
+
+    const { document: exported } = await client.send({ t: 'vault.export' });
+    await client.send({ t: 'vault.wipe', confirm: 'wipe' });
+    const restored = await client.send({ t: 'vault.import', document: exported });
+
+    const defaultVersion = restored.vault.versions.find((v) => v.name === DEFAULT_VERSION_NAME);
+    expect(defaultVersion?.description).toBe('my tuned lens');
+    expect(defaultVersion?.stylePriority).toEqual(['responsibilities', 'long']);
+    expect(defaultVersion?.variantPrefs).toMatchObject({ 'snip-1': 'var-9' });
+  });
+
+  it('a fresh vault export re-validates against the schema (P1-6)', async () => {
+    const { client } = makeStack();
+    const { document: doc } = await client.send({ t: 'vault.export' });
+    const validation = validateImport(doc);
+    if (!validation.valid) throw new Error(JSON.stringify(validation.errors));
+    expect(validation.valid).toBe(true);
+  });
+
+  it('concurrent cold reads share one vault object (P1-7)', async () => {
+    const storage = createMemoryStorage();
+    const service = new DataService(storage, new FileStore(new MemoryBlobStore()));
+    const [a, b] = await Promise.all([service.getVault(), service.getVault()]);
+    expect(a).toBe(b);
+  });
+
+  it('work added via vault.patch joins include-all versions and composes (P1-9)', async () => {
+    const { client } = makeStack();
+    await client.send({ t: 'vault.get' });
+    const work = [
+      {
+        id: 'w-ui',
+        company: 'Typed In Options',
+        title: 'Engineer',
+        startDate: '2024-01',
+        current: true,
+        summary: {
+          id: 's-ui',
+          tags: [],
+          variants: [{ id: 'v-ui', style: 'impact', text: 'Did things.' }],
+          defaultVariantId: 'v-ui',
+        },
+        bullets: [],
+      },
+    ];
+    const patched = await client.send({
+      t: 'vault.patch',
+      ops: [{ section: 'work', value: work }],
+    });
+    const active = patched.vault.versions.find(
+      (v) => v.id === patched.vault.settings.activeVersionId,
+    );
+    expect(active?.include.workIds).toContain('w-ui');
+    const composed = await client.send({ t: 'compose', key: 'work[0].company' });
+    expect(composed.value).toBe('Typed In Options');
   });
 });
