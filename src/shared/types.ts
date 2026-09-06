@@ -446,10 +446,6 @@ export function parseCanonicalKey(key: string): ParsedKey | undefined {
   return undefined;
 }
 
-export function isSensitiveKey(key: CanonicalKey): boolean {
-  return key.startsWith('eeo.');
-}
-
 // ---------------------------------------------------------------------------
 // §4.6 Root document
 // ---------------------------------------------------------------------------

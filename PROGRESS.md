@@ -1,6 +1,6 @@
 # Progress
 
-Status: rungs 0-3 complete + reviewed; rung 4 items all landed | Last green checkpoint: (this commit) 02:05
+Status: NIGHT COMPLETE — all rungs green + reviewed, whole-night review fixed | Last green checkpoint: (this commit) 02:30
 
 This file is the re-anchor point after context loss. It is written for a reader with no memory
 of the session: what is true in the repo right now, what was decided, and what is not done.
@@ -45,8 +45,8 @@ of the session: what is true in the repo right now, what was decided, and what i
       exception, MutationObserver settle + generations), label.ts (§7.2, shadow-root-aware),
       classify.ts (§7.3 weights/tiers/rationalization/min-signal/question matching), Appendix B
       rules as data in src/shared/rules/
-- [x] classifier corpus: 52 fixtures, 104 assertions, per-key report at fixtures/report.md
-      (snapshot-gated), negatives + anti-pattern guard covered
+- [x] classifier corpus: 54 fixtures, per-field ACTUAL-output report at fixtures/report.md
+      (snapshot-gated on classifier output), negatives + anti-pattern guard covered
 - [x] fillers: text (native setter + input/change/blur), select, radio-group, checkbox,
       contenteditable; combobox = honest text-entry w/ read-back; listbox-button = copy fallback
       (both drop to suggest, never pretend — Rung 4 has the real drivers)
@@ -88,7 +88,14 @@ of the session: what is true in the repo right now, what was decided, and what i
 
 ### Rung 4 — Polish (only if 0–3 green)
 
-- [ ] README · `npm run demo` · overlay a11y · import dry-run diff · combobox fillers · CI yaml
+- [x] README (quickstart, demo script, architecture map)
+- [x] `npm run demo`
+- [x] overlay a11y: palette focus trap, Esc everywhere, ARIA roles/aria-modal, visible focus
+- [x] import dry-run preview (merge-add on a clone, confirm before write)
+- [x] combobox + listbox-button fillers (async drivers w/ no-auto-submit guards, widget
+      harness page, e2e incl. the form-trap regression)
+- [x] CI workflow mirroring verify + e2e
+- [x] ai/ deliverables (SKILL.md, PROMPT.md, sample-resume worked example)
 
 ## Rung 0 review findings (fresh subagent, fixed before rung 1 commit)
 
@@ -114,6 +121,32 @@ of the session: what is true in the repo right now, what was decided, and what i
   Preact MIT notices retained via `legalComments: 'inline'`.
 - P2s parked (see Parked): count-pinning innerHTML by line-source; `no-restricted-properties`
   for globalThis.browser; running dist/content.js itself in an e2e.
+
+## Whole-night review findings (fresh subagent over the entire diff; P0 + all quick P1/P2 fixed)
+
+- **P0-1 listbox-button filling could SUBMIT a form.** A `<button>` without `type` inside a
+  `<form>` is a submit button by spec default; scan admitted any `aria-haspopup=listbox`
+  button and the widget filler clicked it. Fixed twice over: scan refuses submit-capable
+  buttons (`form !== null && type !== 'button'`), and the filler independently refuses them
+  AND installs a capturing submit-suppressor on the form while driving a popup. Widgets
+  harness now has a form-wrapped trap button + `__submitted` sentinel; e2e pins both.
+- P1 fixes: scanner now skips jobfill's own overlay host (on real Firefox
+  `openOrClosedShadowRoot` would have walked into our closed root and badged our own
+  palette; invisible to the page-world harness) · palette requires a second Enter for
+  sensitive results (same confirm-first rule as the popover) and threads the answers bank +
+  thresholds into loose-target classification · ONE shared `isSensitiveTarget` rule
+  (classifier, site-memory apply, map… all use it; dead `isSensitiveKey` deleted) · salary
+  is now default-sensitive in the options UI too, not just on import · dropzone attach
+  detection uses the real deny-list (banking rule extended with voided-cheque /
+  direct-deposit) · stale docs corrected (fillers header, README no-auto-submit wording,
+  PROGRESS rung-4 checklist below).
+- P2 fixes: `version.setActive` is privileged · quickSave capped at 500 entries · persist()
+  caches only after the write lands · load() sanitizes+normalizes stored data · import
+  normalizes · `findListboxFor` never falls back to an unrelated open listbox · popover
+  snippet-swap results show the 🔒 marker.
+- P2 parked: two base64 helper copies (shared/base64.ts refactor) · matchChoice threshold
+  constants unnamed · radioLabel/labelFor duplication · fill-all has no cancel during slow
+  widget waits · content-side search errors surface as "no fields" hint.
 
 ## Rung 3 review findings (fresh subagent; all P0/P1 fixed)
 

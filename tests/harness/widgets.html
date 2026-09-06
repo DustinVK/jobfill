@@ -62,6 +62,55 @@
 
     <div id="chosen"></div>
 
+    <!-- P0 regression: a FORM-wrapped listbox button with NO type attribute is a submit
+         button by spec default — jobfill must never scan or click it. -->
+    <form id="trap-form">
+      <label id="trap-label">Country of residence</label>
+      <button id="trap-button" aria-haspopup="listbox" aria-labelledby="trap-label">Select…</button>
+      <!-- and a type="button" one that IS safe to drive, wrapped in the same form -->
+      <label id="safe-label">Phone Type (in form)</label>
+      <button
+        id="safe-button"
+        type="button"
+        aria-haspopup="listbox"
+        aria-labelledby="safe-label"
+        aria-controls="safe-list"
+      >
+        Select one…
+      </button>
+      <div id="safe-list" role="listbox" hidden></div>
+    </form>
+    <script>
+      window.__submitted = false;
+      document.getElementById('trap-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        window.__submitted = true;
+      });
+      const safeButton = document.getElementById('safe-button');
+      const safeList = document.getElementById('safe-list');
+      safeButton.addEventListener('click', () => {
+        if (!safeList.hidden) {
+          safeList.hidden = true;
+          return;
+        }
+        setTimeout(() => {
+          safeList.replaceChildren(
+            ...['Mobile', 'Home', 'Work'].map((t) => {
+              const opt = document.createElement('div');
+              opt.setAttribute('role', 'option');
+              opt.textContent = t;
+              opt.addEventListener('click', () => {
+                safeButton.textContent = t;
+                safeList.hidden = true;
+              });
+              return opt;
+            }),
+          );
+          safeList.hidden = false;
+        }, 100);
+      });
+    </script>
+
     <script>
       // --- typeahead combobox: options render 150 ms after typing (async, like real ATS) ---
       const COUNTRIES = ['Canada', 'United Kingdom', 'United States', 'Germany', 'Nigeria'];

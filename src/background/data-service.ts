@@ -60,13 +60,16 @@ export class DataService {
       throw new Error('jobfill: stored vault has an unrecognized format');
     }
     const vault = await this.codec.decode(raw);
+    // Belt-and-braces: stored data may predate a rule change or have been edited on disk;
+    // the safety invariants hold on READ as well as on every write.
+    sanitizeVault(vault);
+    normalizeVault(vault);
     this.cache = vault;
     return vault;
   }
 
   private async persist(vault: Vault): Promise<void> {
     vault.updatedAt = nowIso();
-    this.cache = vault;
     const write = this.writeChain.then(async () => {
       const envelope = await this.codec.encode(vault);
       await this.storage.local.set(VAULT_KEY, envelope);
@@ -74,6 +77,8 @@ export class DataService {
     // Serialize writes so a slow encode can never land after a newer one.
     this.writeChain = write.catch(() => undefined);
     await write;
+    // Cache only what actually reached storage — a failed write must not poison reads.
+    this.cache = vault;
   }
 
   /** Applies typed section replacements (see messages.ts PatchOp) and persists. */
@@ -179,6 +184,7 @@ export class DataService {
     const working = structuredClone(live);
     const result = mergeAdd(working, document);
     sanitizeVault(result.vault);
+    normalizeVault(result.vault);
     await this.persist(result.vault);
     for (const payload of result.files) {
       await this.files.putBytes(payload.record.bytesRef, payload.bytes, payload.record.mime);

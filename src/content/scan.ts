@@ -106,12 +106,17 @@ function collectCandidates(root: ParentNode, out: Element[]): void {
   const selector =
     'input, textarea, select, [contenteditable], [role=combobox], [aria-haspopup=listbox], button[aria-haspopup=listbox]';
   for (const el of root.querySelectorAll(selector)) {
+    // Never scan our own overlay. On real Firefox, openOrClosedShadowRoot reaches even the
+    // CLOSED overlay root — without this guard the scanner would badge its own palette
+    // (whole-night review P1-1; invisible to the page-world harness).
+    if (el.closest('[data-jobfill]')) continue;
     out.push(el);
   }
   // Shadow-host discovery walks every element on every scan — O(page size) per settle.
   // Acceptable tonight; a cached-hosts TreeWalker is the optimization if profiling ever
   // shows this hot (parked in PROGRESS).
   for (const el of root.querySelectorAll('*')) {
+    if (el.hasAttribute('data-jobfill')) continue; // never recurse into the overlay host
     const shadow = shadowRootOf(el);
     if (shadow) collectCandidates(shadow, out);
   }
@@ -213,6 +218,10 @@ export function scanFields(root: ParentNode = document): ScannedField[] {
 
     if (el instanceof HTMLButtonElement && el.getAttribute('aria-haspopup') === 'listbox') {
       if (isDisabled(el) || !isVisible(el, layout)) continue;
+      // AUTO-SUBMIT GUARD (SPEC §7.9): a <button> without type inside a <form> IS a submit
+      // button by spec default. Only explicit type="button" (or form-less buttons) may ever
+      // be clicked by the listbox filler; anything else is not a fillable widget for us.
+      if (el.form !== null && el.type !== 'button') continue;
       fields.push({ fieldId: `field-${nextFieldId++}`, kind: 'listbox-button', element: el });
       continue;
     }

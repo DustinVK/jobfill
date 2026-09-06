@@ -1,11 +1,11 @@
 /**
- * Filler strategies — SPEC §7.4. A registry of named strategies; every fill snapshots prior
- * state for undo (§7.8) and verifies by read-back — a mismatch (site JS rewrote the value)
- * is reported, never silently swallowed.
+ * Synchronous filler strategies — SPEC §7.4. Every fill snapshots prior state for undo
+ * (§7.8) and verifies by read-back — a mismatch (site JS rewrote the value) is reported,
+ * never silently swallowed.
  *
- * `combobox`/`listbox-button` are deliberately absent tonight (Rung 4 optional): on
- * encounter, classification drops them to `suggest` with the option list in the popover
- * (SPEC §5.4 fallback) — never pretend to drive a widget we can't.
+ * The async custom-widget drivers (`combobox` typeahead, `listbox-button`) live in
+ * widgets.ts; both refuse submit-capable buttons and suppress form submission while
+ * driving a popup (§7.9 no-auto-submit, whole-night review P0-1).
  */
 import type { ScannedField } from '../scan.js';
 import { matchChoice } from '../../shared/format.js';

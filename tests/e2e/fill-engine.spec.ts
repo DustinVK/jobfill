@@ -372,3 +372,35 @@ test.describe('custom widgets (rung 4 item 5)', () => {
     await expect(page.locator('#chosen')).toContainText('phoneType=Mobile');
   });
 });
+
+test.describe('no-auto-submit guard (whole-night review P0-1)', () => {
+  test('a form-wrapped listbox button without type is never scanned, and nothing submits', async ({
+    page,
+  }) => {
+    await page.goto('/widgets.html');
+    await injectContentBundle(page);
+    await waitForFillBar(page);
+
+    const scanned = await page.evaluate(() =>
+      window.__jobfillHarness!.session.session.current.entries.map(
+        (e) => e.field.element.id || e.field.element.tagName,
+      ),
+    );
+    // The submit-defaulting trap button must not be a field at all.
+    expect(scanned).not.toContain('trap-button');
+    // The explicit type="button" sibling IS scannable.
+    expect(scanned).toContain('safe-button');
+
+    // Drive the safe in-form button; the form must not submit.
+    await page.evaluate(async () => {
+      const handle = window.__jobfillHarness!;
+      const entry = handle.session.session.current.entries.find(
+        (e) => e.field.element.id === 'safe-button',
+      );
+      if (entry) await handle.session.session.fillEntry(entry, 'Mobile', true);
+    });
+    await expect(page.locator('#safe-button')).toHaveText('Mobile');
+    const submitted = await page.evaluate(() => (window as { __submitted?: boolean }).__submitted);
+    expect(submitted).toBe(false);
+  });
+});

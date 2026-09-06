@@ -61,8 +61,9 @@ function findListboxFor(control: Element): Element | null {
   const wrapper = control.closest('[role="combobox"]')?.parentElement ?? control.parentElement;
   const near = wrapper?.querySelector('[role="listbox"]');
   if (near && isShowing(near)) return near;
-  const any = scope.querySelector('[role="listbox"]');
-  return any && isShowing(any) ? any : null;
+  // No document-wide fallback: clicking an option in some OTHER widget's open popup would
+  // be worse than doing nothing (whole-night review P2).
+  return null;
 }
 
 function optionsOf(listbox: Element): HTMLElement[] {
@@ -136,9 +137,34 @@ export async function fillListboxButton(
 ): Promise<FillResult> {
   const button = field.element;
   if (!(button instanceof HTMLElement)) return fail('not an element');
+  // Defense in depth on the §7.9 no-auto-submit rule (scan.ts already filters, but this
+  // module must be safe standalone): refuse submit-capable buttons, and belt-and-braces
+  // suppress any submit that a click might still trigger while we drive the widget.
+  if (button instanceof HTMLButtonElement && button.form !== null && button.type !== 'button') {
+    return fail('refusing a submit-capable button (no-auto-submit rule)');
+  }
   const doc = button.ownerDocument;
   const before = button.textContent?.trim() ?? '';
+  const form = button instanceof HTMLButtonElement ? button.form : null;
+  const suppressSubmit = (e: Event) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  };
+  form?.addEventListener('submit', suppressSubmit, true);
+  try {
+    return await driveListbox(button, before, targets, doc, timeoutMs);
+  } finally {
+    form?.removeEventListener('submit', suppressSubmit, true);
+  }
+}
 
+async function driveListbox(
+  button: HTMLElement,
+  before: string,
+  targets: string[],
+  doc: Document,
+  timeoutMs: number,
+): Promise<FillResult> {
   button.click();
   const listbox = await waitForElement(() => findListboxFor(button), doc, timeoutMs);
   if (!listbox) return fail('the option list never opened');

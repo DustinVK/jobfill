@@ -564,9 +564,18 @@ export class OverlayUI {
     let selectedIndex = 0;
     let currentResults: SearchResult[] = [];
 
+    let armedSensitive: SearchResult | undefined;
     const commit = (result: SearchResult | undefined, copy: boolean) => {
       if (!result) return;
       if (!copy && target) {
+        // Sensitive values need a second, deliberate keystroke (SPEC §7.9) — same rule as
+        // the popover's Confirm & fill (whole-night review P1-2).
+        if (result.sensitive && armedSensitive !== result) {
+          armedSensitive = result;
+          this.toast('🔒 Sensitive — press Enter again to fill this field');
+          return;
+        }
+        armedSensitive = undefined;
         const entry =
           this.deps.session.current.entries.find((e) => e.field.element === target) ??
           this.classifyLooseTarget(target);
@@ -580,7 +589,9 @@ export class OverlayUI {
           } else {
             this.toast(fillResult.reason ?? 'Could not fill this field');
           }
+          this.closePalette();
         });
+        return;
       } else {
         this.copyToClipboard(result.value);
         this.toast('Copied to clipboard');
@@ -741,7 +752,9 @@ export class OverlayUI {
           : ('text' as const);
     const field: ScannedField = { fieldId: 'palette-target', kind, element: target };
     const signals = gatherSignals(field);
-    const result = classifyFields([signals]);
+    // Same options as scan-time classification: the answers bank's sensitivity flags apply
+    // to loose targets too (whole-night review P1-2).
+    const result = classifyFields([signals], { answers: this.deps.session.answers });
     return { field, signals, classification: result.fields[0]! };
   }
 
@@ -792,7 +805,12 @@ export class OverlayUI {
         for (const result of results) {
           const option = el(this.doc, 'button', 'jf-option');
           option.append(
-            el(this.doc, 'span', 'jf-option-label', result.label),
+            el(
+              this.doc,
+              'span',
+              'jf-option-label',
+              `${result.sensitive ? '🔒 ' : ''}${result.label}`,
+            ),
             el(this.doc, 'span', 'jf-option-value', result.value),
           );
           option.addEventListener('click', () => onPick(result));

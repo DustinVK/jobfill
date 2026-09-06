@@ -48,7 +48,9 @@ focused field — it works on any site, classified or not.
 
 ## Safety model
 
-- **No auto-submit, ever.** There is no code path that clicks submit/next/continue.
+- **No auto-submit, ever.** The engine never clicks submit/next/continue: the only page
+  buttons it will click are explicit `type="button"` (or form-less) listbox triggers, with a
+  belt-and-braces submit suppressor active while a widget popup is being driven.
 - **Deny-list**: passwords, CAPTCHAs/OTPs, SSNs/national IDs, DOB, bank details are never
   filled, with no override.
 - **Sensitive answers** (EEO self-ID, criminal disclosure, salary by default) are excluded

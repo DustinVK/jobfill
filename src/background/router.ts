@@ -47,6 +47,7 @@ const MAX_FILE_BYTES = 25 * 1_048_576;
  * for content — tonight the slice for web contexts is "nothing", which is stricter).
  */
 const PRIVILEGED_TYPES = new Set([
+  'version.setActive',
   'vault.get',
   'vault.patch',
   'vault.wipe',
@@ -179,6 +180,9 @@ async function handle(
       const question = expectNonEmptyString(message.question, 'question').slice(0, 500);
       const value = expectNonEmptyString(message.value, 'value').slice(0, 5000);
       const vault = await data.getVault();
+      if (vault.answers.length >= 500) {
+        throw new Error('jobfill: answers bank is full (500 entries) — clean up in options');
+      }
       const entry = {
         id: crypto.randomUUID(),
         question,

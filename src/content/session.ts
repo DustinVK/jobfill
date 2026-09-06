@@ -4,7 +4,14 @@
  */
 import type { ProtocolClient } from '../shared/messages.js';
 import type { Classification } from '../shared/classify.js';
-import { classifyFields, type FieldSignals } from '../shared/classify.js';
+import {
+  classifyFields,
+  isSensitiveTarget,
+  type ClassifyOptions,
+  type FieldSignals,
+} from '../shared/classify.js';
+
+type AnswersContext = NonNullable<ClassifyOptions['answers']>;
 import type { ComposedValue } from '../shared/compose.js';
 import { gatherSignals } from './label.js';
 import { scanFields, type ScannedField } from './scan.js';
@@ -53,6 +60,8 @@ export class FillSession {
     activeVersionName: '',
   };
   private readonly siteMemoryStub = new Map<string, string>();
+  /** Latest fill-context answers — sensitivity + question-matching source for corrections. */
+  private answersInfo: AnswersContext = [];
   /** Fill outcomes keyed by ELEMENT so ✓/amber badges survive SPA-settle rescans. */
   private readonly fillStates = new WeakMap<Element, NonNullable<PlanEntry['fillState']>>();
   private refreshToken = 0;
@@ -62,6 +71,11 @@ export class FillSession {
 
   get current(): SessionState {
     return this.state;
+  }
+
+  /** Answers context for consumers classifying outside the scan (palette loose targets). */
+  get answers(): AnswersContext {
+    return this.answersInfo;
   }
 
   onChange(cb: () => void): void {
@@ -78,6 +92,7 @@ export class FillSession {
     // out-of-date proposals — SPEC §7.1 scan generations).
     const token = ++this.refreshToken;
     const context = await this.client.send({ t: 'fill.context' });
+    this.answersInfo = context.answers;
     const fields = scanFields(root);
     const signals = fields.map(gatherSignals);
     const result = classifyFields(signals, {
@@ -101,7 +116,8 @@ export class FillSession {
       const fingerprint = this.fingerprintOf(entry.field, entry.signals);
       const mapped = fingerprint ? this.siteMemoryStub.get(fingerprint) : undefined;
       if (mapped) {
-        const sensitive = entry.classification.sensitive || mapped.startsWith('eeo.');
+        const sensitive =
+          entry.classification.sensitive || isSensitiveTarget(mapped, this.answersInfo);
         entry.classification = {
           ...entry.classification,
           key: mapped,
@@ -272,7 +288,7 @@ export class FillSession {
     if (entry.classification.tier === 'skip') return false;
     const fingerprint = this.fingerprintOf(entry.field, entry.signals);
     if (fingerprint) this.siteMemoryStub.set(fingerprint, key);
-    const sensitive = entry.classification.sensitive || key.startsWith('eeo.');
+    const sensitive = entry.classification.sensitive || isSensitiveTarget(key, this.answersInfo);
     entry.classification = {
       ...entry.classification,
       key,

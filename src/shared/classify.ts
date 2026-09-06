@@ -81,6 +81,26 @@ export interface ClassifyOptions {
   answers?: Pick<AnswerEntry, 'id' | 'key' | 'question' | 'patterns' | 'sensitive'>[];
 }
 
+/** Answers-bank shape needed for sensitivity decisions (id + key + sensitive). */
+export type AnswerSensitivityInfo = Pick<AnswerEntry, 'id' | 'key' | 'sensitive'>;
+
+/**
+ * THE sensitivity rule, shared by every consumer (classifier, site-memory apply, map…):
+ * eeo.* keys are always sensitive; answers.* keys inherit the bank entry's own flag.
+ */
+export function isSensitiveTarget(key: CanonicalKey, answers: AnswerSensitivityInfo[]): boolean {
+  if (key.startsWith('eeo.')) return true;
+  if (key.startsWith('answers.custom:')) {
+    const id = key.slice('answers.custom:'.length);
+    return answers.some((a) => a.id === id && a.sensitive);
+  }
+  if (key.startsWith('answers.')) {
+    const wellKnown = key.slice('answers.'.length);
+    return answers.some((a) => a.key === wellKnown && a.sensitive);
+  }
+  return false;
+}
+
 export interface ClassifyResult {
   fields: Classification[];
   /**
@@ -340,17 +360,10 @@ export function classifyFields(fields: FieldSignals[], opts: ClassifyOptions = {
   // Assign tiers post-rationalization; sensitive keys never reach auto (SPEC §7.9).
   // Sensitivity comes from BOTH the key prefix (eeo.*) and the answers bank's own flags —
   // a heuristic hit on answers.salaryExpectation must inherit that entry's sensitive bit.
-  const sensitiveAnswerKeys = new Set(
-    answers
-      .filter((a) => a.sensitive)
-      .flatMap((a) => (a.key ? [`answers.${a.key}`] : [`answers.custom:${a.id}`])),
-  );
   for (const result of results.values()) {
     if (result.tier === 'skip') continue;
     const sensitive =
-      result.sensitive ||
-      result.key?.startsWith('eeo.') === true ||
-      (result.key !== undefined && sensitiveAnswerKeys.has(result.key));
+      result.sensitive || (result.key !== undefined && isSensitiveTarget(result.key, answers));
     if (sensitive) result.sensitive = true;
     if (result.key === undefined || result.score < suggestThreshold) {
       result.tier = 'manual';

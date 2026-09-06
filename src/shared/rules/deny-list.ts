@@ -14,7 +14,8 @@ export const DENY_RULES: readonly { name: string; pattern: RegExp }[] = [
   { name: 'maiden-name', pattern: /mother'?s? ?maiden/ },
   {
     name: 'banking',
-    pattern: /\bbank\b|routing|\biban\b|\bswift\b|card ?number|\bcvv\b|\bcvc\b|account ?number/,
+    pattern:
+      /\bbank\b|routing|\biban\b|\bswift\b|card ?number|\bcvv\b|\bcvc\b|account ?number|voided? ?(cheque|check)|direct ?deposit/,
   },
 ];
 

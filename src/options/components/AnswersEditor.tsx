@@ -5,6 +5,7 @@
 import type { AnswerEntry, AnswerKind, Settings, WellKnownAnswerKey } from '../../shared/types.js';
 import {
   ALWAYS_SENSITIVE_ANSWER_KEYS,
+  DEFAULT_SENSITIVE_ANSWER_KEYS,
   EEO_ANSWER_KEYS,
   WELL_KNOWN_ANSWER_KEYS,
 } from '../../shared/types.js';
@@ -44,10 +45,13 @@ function AnswerRow({
             onChange={(e) => {
               const raw = (e.currentTarget as HTMLSelectElement).value;
               const key = raw === '' ? undefined : (raw as WellKnownAnswerKey);
+              // Default-sensitive keys (salary) switch sensitivity ON when picked; the user
+              // can still unmark them afterwards (unlike the locked ALWAYS set).
+              const defaultOn = key !== undefined && DEFAULT_SENSITIVE_ANSWER_KEYS.includes(key);
               onChange({
                 ...entry,
                 key,
-                sensitive: forcedSensitive(key) ? true : entry.sensitive,
+                sensitive: forcedSensitive(key) || defaultOn ? true : entry.sensitive,
               });
             }}
           >
@@ -191,7 +195,8 @@ export function AnswersEditor({
       patterns: [],
       kind: key === 'sponsorship' || key === 'workAuthorization' ? 'boolean' : 'text',
       value: '',
-      sensitive: forcedSensitive(key),
+      sensitive:
+        forcedSensitive(key) || (key !== undefined && DEFAULT_SENSITIVE_ANSWER_KEYS.includes(key)),
     };
     onChange([...answers, entry]);
   };

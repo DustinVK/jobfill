@@ -25,6 +25,8 @@
  *    fixed FF90) are all far below the manifest's strict_min_version 128.
  */
 
+import { denyMatch } from '../shared/rules/deny-list.js';
+
 export type AttachEnvironment = 'page-compartment' | 'plain';
 
 /** FF-only content-script global; absent everywhere else. */
@@ -254,7 +256,8 @@ export function findAttachableDropzone(root: ParentNode): Element | null {
     if (zone.querySelector(ZONE_SELECTOR)) continue; // prefer the innermost zone
     const text = (zone.textContent ?? '').slice(0, 300);
     if (!/resume|c\.?v\b|curriculum|upload|drop|attach/i.test(text)) continue;
-    if (/passport|licen[cs]e|national id|bank|cheque|void/i.test(text)) continue;
+    // THE deny-list, not a hand-rolled subset (whole-night review P1-5).
+    if (denyMatch(text.toLowerCase())) continue;
     return zone;
   }
   return null;
