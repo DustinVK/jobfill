@@ -113,6 +113,8 @@ export interface ComposedValue {
    * type "Mobile" with none stored) — such proposals never auto-fill, only suggest.
    */
   defaulted?: boolean;
+  /** Multi-value keys (skills): the individual items, for tag/chip widgets. */
+  items?: string[];
 }
 
 /** Returned when a key parses but the vault has nothing for it. */
@@ -388,7 +390,10 @@ export function compose(
   // --- skills & languages --------------------------------------------------
   if (parsed.root === 'skills') {
     const skills = version.include.skills ?? profile.skills;
-    return composed(joinList(skills), [joinList(skills, 'newline'), joinList(skills, 'middot')]);
+    return {
+      ...composed(joinList(skills), [joinList(skills, 'newline'), joinList(skills, 'middot')]),
+      items: skills.filter((skill) => skill.trim().length > 0),
+    };
   }
   if (parsed.root === 'languages') {
     const languages = (profile.languages ?? []).map((l) =>

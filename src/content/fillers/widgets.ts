@@ -181,3 +181,103 @@ async function driveListbox(
   const landed = after !== before && after.length > 0;
   return { ok: true, verified: landed, reason: landed ? undefined : 'button text did not change' };
 }
+
+/** Synthesized Enter keystroke — tag inputs commit free text on it. */
+function pressEnter(input: HTMLElement): void {
+  for (const type of ['keydown', 'keypress', 'keyup'] as const) {
+    input.dispatchEvent(
+      new KeyboardEvent(type, {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      }),
+    );
+  }
+}
+
+function settle(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Multi-value tag/chip skills widgets: per skill — type it, await the suggestion list,
+ * click the best match (or press Enter when the widget takes free text), verify the chip
+ * rendered. Honest partial results ("Added 9 of 12 skills"); stops after 3 consecutive
+ * misses instead of grinding. NOT undoable — removing chips means re-driving the widget,
+ * so the badge shows filled without a revert affordance.
+ */
+export async function fillSkillTags(
+  field: ScannedField,
+  skills: string[],
+  timeoutPerSkillMs = 800,
+): Promise<FillResult> {
+  const el = field.element;
+  const input =
+    el instanceof HTMLInputElement ? el : (el.querySelector<HTMLInputElement>('input') ?? null);
+  if (!input) return fail('skills widget has no text input to type into');
+  const doc = input.ownerDocument;
+
+  // Chips render NEXT TO the input in every mainstream tag widget — verify against the
+  // input's near ancestors only, with script/style/suggestion-list text stripped (page
+  // scripts routinely mention skill names) and never as far up as <body>.
+  const containerText = (node: HTMLElement): string => {
+    const clone = node.cloneNode(true) as HTMLElement;
+    for (const junk of clone.querySelectorAll('script, style, [role="listbox"]')) junk.remove();
+    return clone.textContent ?? '';
+  };
+  const chipLanded = (skill: string): boolean => {
+    let node: HTMLElement | null = input.parentElement;
+    for (let hops = 0; node && hops < 2; hops++, node = node.parentElement) {
+      if (node.tagName === 'BODY' || node.tagName === 'HTML') break;
+      if (containerText(node).includes(skill)) return true;
+    }
+    return false;
+  };
+
+  let added = 0;
+  let consecutiveMisses = 0;
+  for (const skill of skills) {
+    if (consecutiveMisses >= 3) break;
+    if (chipLanded(skill) && input.value === '') {
+      added++; // already present (previous run or site prefill)
+      continue;
+    }
+    input.focus();
+    setNativeValue(input, skill);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const listbox = await waitForElement(() => findListboxFor(input), doc, timeoutPerSkillMs);
+    if (listbox) {
+      const options = optionsOf(listbox);
+      const labels = options.map((o) => o.textContent?.trim() ?? '');
+      const match = matchChoice(labels, [skill], 0.5);
+      if (match) options[match.index]!.click();
+      else pressEnter(input);
+    } else {
+      pressEnter(input);
+    }
+    await settle(120);
+
+    if (chipLanded(skill)) {
+      added++;
+      consecutiveMisses = 0;
+    } else {
+      consecutiveMisses++;
+      setNativeValue(input, ''); // clear the rejected text so it can't leak into the next try
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  if (added === 0) return fail('the widget accepted none of the skills — add them by hand');
+  const complete = added === skills.length;
+  return {
+    ok: true,
+    verified: complete,
+    reason: complete
+      ? `Added ${added} skills`
+      : `Added ${added} of ${skills.length} skills — finish the rest by hand`,
+  };
+}

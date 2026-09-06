@@ -27,7 +27,7 @@ import {
   undoElement,
   type FillResult,
 } from './fillers/index.js';
-import { fillCombobox, fillListboxButton } from './fillers/widgets.js';
+import { fillCombobox, fillListboxButton, fillSkillTags } from './fillers/widgets.js';
 
 export interface PlanEntry {
   field: ScannedField;
@@ -350,9 +350,15 @@ export class FillSession {
         result = fillCheckbox(entry.field, polarity.index === 0, this.snapshots);
         break;
       }
-      case 'combobox':
+      case 'combobox': {
+        // Skills tag/chip widgets take the ITEM LIST one chip at a time, not a joined string.
+        if (entry.classification.key === 'skills' && (entry.value?.items?.length ?? 0) > 0) {
+          result = await fillSkillTags(entry.field, entry.value!.items!);
+          break;
+        }
         result = await fillCombobox(entry.field, value, targets, this.snapshots);
         break;
+      }
       case 'listbox-button':
         result = await fillListboxButton(entry.field, targets);
         break;

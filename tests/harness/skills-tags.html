@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>tag-style skills widget</title>
+    <style>
+      body {
+        font: 15px/1.5 system-ui;
+        max-width: 40rem;
+        margin: 32px auto;
+      }
+      label {
+        display: block;
+        margin-top: 16px;
+      }
+      .tags-box {
+        border: 1px solid #999;
+        border-radius: 8px;
+        padding: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .chip {
+        background: #e2ecf9;
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 13px;
+      }
+      .tags-box input {
+        border: none;
+        outline: none;
+        flex: 1;
+        min-width: 120px;
+        font: inherit;
+      }
+      [role='listbox'] {
+        border: 1px solid #999;
+        border-radius: 6px;
+        margin-top: 4px;
+        max-width: 300px;
+      }
+      [role='option'] {
+        padding: 4px 8px;
+        cursor: pointer;
+      }
+      [role='option']:hover {
+        background: #eef;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="/event-log.js"></script>
+    <h1>Skills</h1>
+    <label for="first_name">First name</label><input id="first_name" />
+    <label for="last_name">Last name</label><input id="last_name" />
+
+    <label id="skills-label" for="skills-input">Skills</label>
+    <div class="tags-box" id="chips">
+      <input
+        id="skills-input"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="skills-list"
+        aria-labelledby="skills-label"
+        placeholder="Type a skill…"
+      />
+    </div>
+    <div id="skills-list" role="listbox" hidden></div>
+
+    <script>
+      // Models the common tag widget: a vocabulary-backed suggestion list (renders 100 ms
+      // after typing) PLUS free-text commit on Enter. Chips render into #chips.
+      // Vocabulary deliberately misses some of the sample skills (AWS, Terraform) so the
+      // Enter fallback path is exercised; "Fortran" tests the reject path nothing accepts.
+      const VOCAB = [
+        'TypeScript',
+        'JavaScript',
+        'Node.js',
+        'PostgreSQL',
+        'Kubernetes',
+        'Go',
+        'Rust',
+      ];
+      const input = document.getElementById('skills-input');
+      const list = document.getElementById('skills-list');
+      const chips = document.getElementById('chips');
+      window.__chips = [];
+
+      function addChip(text) {
+        if (window.__chips.includes(text)) return;
+        window.__chips.push(text);
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = text;
+        chips.insertBefore(chip, input);
+        input.value = '';
+        list.hidden = true;
+      }
+
+      let timer;
+      input.addEventListener('input', () => {
+        clearTimeout(timer);
+        const q = input.value.trim().toLowerCase();
+        if (!q) {
+          list.hidden = true;
+          return;
+        }
+        timer = setTimeout(() => {
+          const matches = VOCAB.filter((v) => v.toLowerCase().includes(q));
+          list.replaceChildren(
+            ...matches.map((v) => {
+              const opt = document.createElement('div');
+              opt.setAttribute('role', 'option');
+              opt.textContent = v;
+              opt.addEventListener('click', () => addChip(v));
+              return opt;
+            }),
+          );
+          list.hidden = matches.length === 0;
+        }, 100);
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && input.value.trim()) {
+          // Free text allowed EXCEPT the rejected token (models strict vocab widgets).
+          if (input.value.trim().toLowerCase() !== 'fortran') addChip(input.value.trim());
+          else {
+            input.value = '';
+            list.hidden = true;
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

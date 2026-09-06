@@ -620,3 +620,62 @@ test.describe('the fill bar is unlosable (off-screen bug)', () => {
     expect(await barWithinViewport(page)).toBe(true);
   });
 });
+
+test.describe('tag-style skills widget', () => {
+  test('each skill lands as its own chip — via suggestions or free-text Enter', async ({
+    page,
+  }) => {
+    await page.goto('/skills-tags.html');
+    await injectContentBundle(page);
+    await waitForFillBar(page);
+
+    const result = await page.evaluate(async () => {
+      const handle = window.__jobfillHarness!;
+      const entry = handle.session.session.current.entries.find(
+        (e) => e.field.element.id === 'skills-input',
+      );
+      if (!entry)
+        return (
+          'no-entry:' +
+          handle.session.session.current.entries.map((e) => e.classification.key).join(',')
+        );
+      return JSON.stringify(await handle.session.session.fillEntry(entry, undefined, true));
+    });
+    expect(result).toContain('"ok":true');
+
+    // Sample vault skills: TypeScript, Node.js, PostgreSQL, Kubernetes, AWS, Terraform.
+    // First four come from the suggestion list; AWS/Terraform only via free-text Enter.
+    const chips = await page.evaluate(() => (window as unknown as { __chips: string[] }).__chips);
+    expect(chips).toEqual(
+      expect.arrayContaining([
+        'TypeScript',
+        'Node.js',
+        'PostgreSQL',
+        'Kubernetes',
+        'AWS',
+        'Terraform',
+      ]),
+    );
+    // The input is left clean, no half-typed residue.
+    await expect(page.locator('#skills-input')).toHaveValue('');
+  });
+
+  test('a widget that rejects everything reports failure instead of pretending', async ({
+    page,
+  }) => {
+    await page.goto('/skills-tags.html');
+    await injectContentBundle(page);
+    await waitForFillBar(page);
+    const result = await page.evaluate(async () => {
+      const handle = window.__jobfillHarness!;
+      const entry = handle.session.session.current.entries.find(
+        (e) => e.field.element.id === 'skills-input',
+      )!;
+      // Force the reject path: only the vocabulary-rejected token.
+      entry.value = { value: 'Fortran', alternates: [], items: ['Fortran'] };
+      return JSON.stringify(await handle.session.session.fillEntry(entry, undefined, true));
+    });
+    expect(result).toContain('"ok":false');
+    expect(result).toContain('by hand');
+  });
+});
