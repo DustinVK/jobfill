@@ -77,7 +77,11 @@ createServer(async (req, res) => {
 });
 
 function tailscale(...args) {
-  return execFileSync('tailscale', args, { encoding: 'utf8' });
+  // Timeout matters: `tailscale serve` BLOCKS (polling) when Serve/HTTPS is not yet enabled
+  // for the tailnet, printing an enablement URL — without a timeout it would hang this
+  // process (and the HTTP server with it). On timeout the captured output carries that
+  // message and the catch below surfaces it verbatim.
+  return execFileSync('tailscale', args, { encoding: 'utf8', timeout: 15000 });
 }
 
 function wireTailscale() {
@@ -109,8 +113,8 @@ function wireTailscale() {
   } catch (err) {
     // Do NOT silently fall back to HTTP — surface tailscale's exact message; enabling
     // HTTPS/MagicDNS is a one-time tailnet toggle at https://login.tailscale.com/admin.
-    console.error('`tailscale serve` failed. Exact output:');
-    console.error(String(err?.stderr ?? err?.stdout ?? err));
+    console.error('`tailscale serve` failed or timed out. Exact output:');
+    console.error(String(err?.stdout || err?.stderr || err));
     console.error('');
     console.error('If this is the HTTPS/MagicDNS-not-enabled message: enable it in the admin');
     console.error(`console, then re-run. Manual HTTP fallback (tailnet-only bind):`);
