@@ -3,31 +3,35 @@
 export const OVERLAY_STYLES = `
   .jf-bar {
     position: fixed;
-    left: 50%;
-    bottom: 18px;
-    transform: translateX(-50%);
+    left: 16px;
+    top: 16px;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
     border-radius: 12px;
     background: #1f2a37;
     border: 1px solid #33465c;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     z-index: 2;
-    max-width: min(94vw, 760px);
+    width: 200px;
+    min-width: 150px;
+    max-width: min(92vw, 760px);
+    resize: horizontal;
+    overflow: hidden;
+  }
+  .jf-bar-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .jf-bar-body {
+    display: flex;
     flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
   }
-  .jf-bar.jf-vertical {
-    flex-direction: column;
-    align-items: stretch;
-    left: auto;
-    right: 16px;
-    bottom: 16px;
-    transform: none;
-    max-width: 240px;
-  }
-  .jf-bar.jf-vertical .jf-btn { text-align: left; }
+  .jf-bar-body > .jf-btn { flex: 1 1 auto; }
   .jf-drag {
     cursor: grab;
     color: #9bb0c3;
@@ -40,7 +44,8 @@ export const OVERLAY_STYLES = `
   .jf-version-select {
     font: inherit;
     font-size: 12px;
-    max-width: 150px;
+    flex: 1 1 100%;
+    min-width: 0;
     padding: 4px 6px;
     border-radius: 8px;
     border: 1px solid #33465c;

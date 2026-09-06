@@ -113,9 +113,12 @@ bytes — in the same format the importer reads. Export before experimenting; **
 8. **Undo** (or **Ctrl/Cmd+Z** while the overlay has focus) restores every touched field
    to what it held before. Clicking a filled field's badge reverts just that one. Undo also
    clears any review skips.
-9. **Bar controls**: drag the ⠿ grip to move the fill bar anywhere (it snaps back inside
-   the viewport); the ↕/↔ button flips it between horizontal and vertical; **Badges**
-   hides/shows all the field dots (useful when they cover the page's own icons).
+9. **Bar controls**: the bar starts as a compact panel in the top-left. Drag the ⠿ grip
+   (top-left of the bar) to move it anywhere — it can never end up off-screen, and
+   double-clicking the grip resets it. Drag the grip in its bottom-right corner to resize:
+   narrow stacks the buttons vertically, wide flows them into a row. ✕ (top-right) closes
+   jobfill; **Badges** hides/shows all the field dots (useful when they cover the page's
+   own icons).
 10. Submit the application yourself. jobfill has no submit path — it will never click
     submit/next/continue for you.
 

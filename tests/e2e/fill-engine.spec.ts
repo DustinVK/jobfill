@@ -488,22 +488,6 @@ test.describe('overlay chrome (badge toggle, Esc audit, movable bar, skip counts
     );
   });
 
-  test('the orientation toggle flips the bar vertical and back', async ({ page }) => {
-    await clickOverlay(page, '[data-jf="toggle-orientation"]');
-    const vertical = await page.evaluate(() =>
-      window.__jobfillHarness!.shadow.querySelector('.jf-bar')!.classList.contains('jf-vertical'),
-    );
-    expect(vertical).toBe(true);
-    await clickOverlay(page, '[data-jf="toggle-orientation"]');
-    const horizontal = await page.evaluate(
-      () =>
-        !window
-          .__jobfillHarness!.shadow.querySelector('.jf-bar')!
-          .classList.contains('jf-vertical'),
-    );
-    expect(horizontal).toBe(true);
-  });
-
   test('skipping a field in review subtracts it from the Review count', async ({ page }) => {
     const countOf = () =>
       page.evaluate(() => {
@@ -581,14 +565,25 @@ test.describe('the fill bar is unlosable (off-screen bug)', () => {
     expect(await barWithinViewport(page)).toBe(true);
   });
 
-  test('flipping orientation after a drag to the edge keeps the bar inside', async ({ page }) => {
+  test('resizing the bar wider at the right edge re-clamps it into the viewport', async ({
+    page,
+  }) => {
     const size = page.viewportSize()!;
-    // Park the (horizontal) bar at the very bottom edge…
-    await dragBarTo(page, size.width - 40, size.height - 20);
+    // Park the bar near the right edge…
+    await dragBarTo(page, size.width - 60, 200);
     expect(await barWithinViewport(page)).toBe(true);
-    // …then flip vertical: the bar gets much taller and must be re-clamped, not clipped.
-    await clickOverlay(page, '[data-jf="toggle-orientation"]');
-    expect(await barWithinViewport(page)).toBe(true);
+    // …then make it much wider (as the native resize grip would): the ResizeObserver
+    // clamp must pull it back inside.
+    await page.evaluate(() => {
+      const bar = window.__jobfillHarness!.shadow.querySelector<HTMLElement>('.jf-bar')!;
+      bar.style.width = '600px';
+    });
+    await page.waitForFunction(() => {
+      const rect = window
+        .__jobfillHarness!.shadow.querySelector<HTMLElement>('.jf-bar')!
+        .getBoundingClientRect();
+      return rect.right <= window.innerWidth && rect.left >= 0;
+    });
   });
 
   test('a drag whose pointerup never fires cannot strand the bar (pointercancel path)', async ({

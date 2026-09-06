@@ -46,7 +46,6 @@ export class OverlayUI {
   private repositionScheduled = false;
   /** UI chrome state (page-session lifetime). */
   private badgesHidden = false;
-  private barVertical = false;
   private barPosition: { left: number; top: number } | undefined;
 
   private readonly reposition = (): void => this.scheduleReposition();
@@ -66,6 +65,10 @@ export class OverlayUI {
     // Badges track their fields through scroll/resize.
     this.doc.defaultView?.addEventListener('scroll', this.reposition, true);
     this.doc.defaultView?.addEventListener('resize', this.reposition);
+    // Resizing the bar itself (native corner grip) must re-clamp it into the viewport.
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(() => this.scheduleReposition()).observe(this.bar);
+    }
 
     // Palette shortcut works while the overlay is alive (SPEC §3.6).
     this.doc.addEventListener('keydown', this.onGlobalKeydown, true);
@@ -117,6 +120,10 @@ export class OverlayUI {
     const state = session.current;
     this.bar.replaceChildren();
 
+    // Header row: grip top-left, close top-right. Everything else lives in the wrapping
+    // body — a narrow bar stacks vertically, a wide one flows horizontally, and the
+    // native bottom-right resize grip lets the user pick any width in between.
+    const head = el(this.doc, 'div', 'jf-bar-head');
     const dragHandle = el(this.doc, 'span', 'jf-drag', '⠿');
     dragHandle.title = 'Drag to move · double-click to reset position';
     dragHandle.setAttribute('data-jf', 'drag');
@@ -125,7 +132,15 @@ export class OverlayUI {
       this.barPosition = undefined; // escape hatch: snap back to the docked default
       this.applyBarLayout();
     });
-    this.bar.append(dragHandle);
+    const closeBtn = el(this.doc, 'button', 'jf-btn jf-btn-quiet', '✕');
+    closeBtn.setAttribute('data-jf', 'close');
+    closeBtn.setAttribute('aria-label', 'Close jobfill');
+    closeBtn.addEventListener('click', () => this.deps.onClose());
+    head.append(dragHandle, closeBtn);
+    this.bar.append(head);
+
+    const body = el(this.doc, 'div', 'jf-bar-body');
+    this.bar.append(body);
 
     // Version switcher (SPEC §3.3): always present so the active version is visible AND
     // changeable; names truncate to keep the bar compact (full name in the tooltip).
@@ -146,14 +161,14 @@ export class OverlayUI {
       versionSelect.addEventListener('change', () => {
         void this.deps.session.setActiveVersion(versionSelect.value, this.doc);
       });
-      this.bar.append(versionSelect);
+      body.append(versionSelect);
     }
 
     const autoCount = session.autoEntries().length;
     const suggestCount = session.suggestEntries().length;
 
     if (state.entries.length === 0) {
-      this.bar.append(
+      body.append(
         el(
           this.doc,
           'span',
@@ -172,14 +187,14 @@ export class OverlayUI {
       );
       fillBtn.setAttribute('data-jf', 'fill-all');
       fillBtn.addEventListener('click', () => void this.runFillAll());
-      this.bar.append(fillBtn);
+      body.append(fillBtn);
     }
 
     if (suggestCount > 0) {
       const reviewBtn = el(this.doc, 'button', 'jf-btn', `Review ${suggestCount}`);
       reviewBtn.setAttribute('data-jf', 'review');
       reviewBtn.addEventListener('click', () => this.startReview());
-      this.bar.append(reviewBtn);
+      body.append(reviewBtn);
     }
 
     // Attach target (rung-3 review P0-1): NEVER a deny-listed upload field; prefer the one
@@ -204,19 +219,19 @@ export class OverlayUI {
         'click',
         () => void this.runAttach(attachTarget, state.attachedFile!.id, attachBtn),
       );
-      this.bar.append(attachBtn);
+      body.append(attachBtn);
     }
 
     const paletteBtn = el(this.doc, 'button', 'jf-btn', 'Search ⌥⇧Space');
     paletteBtn.setAttribute('data-jf', 'palette');
     paletteBtn.title = 'Search all snippets and answers';
     paletteBtn.addEventListener('click', () => this.openPalette());
-    this.bar.append(paletteBtn);
+    body.append(paletteBtn);
 
     const undoBtn = el(this.doc, 'button', 'jf-btn', 'Undo');
     undoBtn.setAttribute('data-jf', 'undo');
     undoBtn.addEventListener('click', () => this.deps.session.undoAll());
-    this.bar.append(undoBtn);
+    body.append(undoBtn);
 
     // Badges can cover page UI (icons in field corners) — one click hides them all.
     const badgesBtn = el(this.doc, 'button', 'jf-btn', this.badgesHidden ? 'Badges off' : 'Badges');
@@ -229,22 +244,7 @@ export class OverlayUI {
       this.badgesHidden = !this.badgesHidden;
       this.render();
     });
-    this.bar.append(badgesBtn);
-
-    const orientBtn = el(this.doc, 'button', 'jf-btn jf-btn-quiet', this.barVertical ? '↔' : '↕');
-    orientBtn.setAttribute('data-jf', 'toggle-orientation');
-    orientBtn.title = this.barVertical ? 'Switch to a horizontal bar' : 'Switch to a vertical bar';
-    orientBtn.addEventListener('click', () => {
-      this.barVertical = !this.barVertical;
-      this.render();
-    });
-    this.bar.append(orientBtn);
-
-    const closeBtn = el(this.doc, 'button', 'jf-btn jf-btn-quiet', '✕');
-    closeBtn.setAttribute('data-jf', 'close');
-    closeBtn.setAttribute('aria-label', 'Close jobfill');
-    closeBtn.addEventListener('click', () => this.deps.onClose());
-    this.bar.append(closeBtn);
+    body.append(badgesBtn);
 
     this.applyBarLayout();
     this.renderBadges();
@@ -256,7 +256,6 @@ export class OverlayUI {
    * outside the window, orientation flip changing its size, window resize…).
    */
   private applyBarLayout(): void {
-    this.bar.classList.toggle('jf-vertical', this.barVertical);
     if (this.barPosition) {
       // Position first so the rect reflects the current orientation, then clamp.
       this.bar.style.left = `${this.barPosition.left}px`;
