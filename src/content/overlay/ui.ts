@@ -731,12 +731,50 @@ export class OverlayUI {
     search.placeholder = 'Search snippets, answers, everything…';
     search.setAttribute('data-jf', 'palette-search');
     palette.append(search);
+
+    // Category tabs: browse the whole library by bucket instead of guessing search terms.
+    const CATEGORIES: { id: SearchResult['category'] | 'all'; label: string }[] = [
+      { id: 'all', label: 'All' },
+      { id: 'personal', label: 'Personal' },
+      { id: 'work', label: 'Work' },
+      { id: 'skills', label: 'Skills' },
+      { id: 'links', label: 'Links' },
+      { id: 'education', label: 'Education' },
+      { id: 'projects', label: 'Projects' },
+      { id: 'answers', label: 'Answers' },
+    ];
+    let selectedCategory: SearchResult['category'] | 'all' = 'all';
+    const tabs = el(this.doc, 'div', 'jf-cats');
+    tabs.setAttribute('data-jf', 'palette-cats');
+    tabs.setAttribute('role', 'tablist');
+    for (const category of CATEGORIES) {
+      const tab = el(this.doc, 'button', 'jf-cat', category.label);
+      tab.setAttribute('data-jf-cat', category.id);
+      tab.setAttribute('role', 'tab');
+      tab.addEventListener('click', () => {
+        selectedCategory = category.id;
+        for (const other of tabs.children) {
+          other.classList.toggle('jf-cat-on', other.getAttribute('data-jf-cat') === category.id);
+        }
+        renderResults();
+        search.focus();
+      });
+      if (category.id === 'all') tab.classList.add('jf-cat-on');
+      tabs.append(tab);
+    }
+    palette.append(tabs);
+
     const results = el(this.doc, 'div', 'jf-options');
     results.setAttribute('data-jf', 'palette-results');
     palette.append(results);
 
     let selectedIndex = 0;
     let currentResults: SearchResult[] = [];
+    const visibleResults = () =>
+      (selectedCategory === 'all'
+        ? currentResults
+        : currentResults.filter((r) => r.category === selectedCategory)
+      ).slice(0, 40);
 
     let armedSensitive: SearchResult | undefined;
     const commit = (result: SearchResult | undefined, copy: boolean) => {
@@ -775,7 +813,7 @@ export class OverlayUI {
 
     const renderResults = () => {
       results.replaceChildren();
-      currentResults.forEach((result, i) => {
+      visibleResults().forEach((result, i) => {
         const option = el(
           this.doc,
           'button',
@@ -793,7 +831,7 @@ export class OverlayUI {
         option.addEventListener('click', () => commit(result, false));
         results.append(option);
       });
-      if (currentResults.length === 0 && search.value.trim()) {
+      if (visibleResults().length === 0 && search.value.trim()) {
         const save = el(this.doc, 'button', 'jf-option');
         save.setAttribute('data-jf', 'palette-save');
         save.append(
@@ -837,7 +875,7 @@ export class OverlayUI {
       if (searchTimer) clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
         void this.deps.client
-          .send({ t: 'snippets.search', q: search.value, limit: 12 })
+          .send({ t: 'snippets.search', q: search.value, limit: 100 })
           .then(({ results: found }) => {
             currentResults = found;
             selectedIndex = 0;
@@ -868,7 +906,7 @@ export class OverlayUI {
         this.closePalette();
       } else if (event.key === 'ArrowDown') {
         event.preventDefault();
-        selectedIndex = Math.min(selectedIndex + 1, currentResults.length - 1);
+        selectedIndex = Math.min(selectedIndex + 1, visibleResults().length - 1);
         renderResults();
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
@@ -876,7 +914,7 @@ export class OverlayUI {
         renderResults();
       } else if (event.key === 'Enter') {
         event.preventDefault();
-        commit(currentResults[selectedIndex], event.shiftKey || !target);
+        commit(visibleResults()[selectedIndex], event.shiftKey || !target);
       }
     });
 

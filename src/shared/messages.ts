@@ -66,6 +66,8 @@ export interface SearchResult {
   value: string;
   /** Canonical key when the result maps to one (atoms, well-known answers). */
   key?: CanonicalKey;
+  /** Browsing bucket for the palette's category tabs. */
+  category: 'personal' | 'links' | 'work' | 'education' | 'projects' | 'skills' | 'answers';
   sensitive: boolean;
 }
 

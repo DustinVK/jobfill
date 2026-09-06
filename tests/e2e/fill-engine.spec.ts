@@ -679,3 +679,99 @@ test.describe('tag-style skills widget', () => {
     expect(result).toContain('by hand');
   });
 });
+
+test.describe('palette category tabs', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/plain-form.html');
+    await injectContentBundle(page);
+    await waitForFillBar(page);
+    await clickOverlay(page, '[data-jf="palette"]');
+    await page.waitForFunction(() =>
+      window.__jobfillHarness?.shadow.querySelector('[data-jf="palette-cats"]'),
+    );
+    // Let the initial empty-query search land.
+    await page.waitForFunction(
+      () =>
+        (window.__jobfillHarness?.shadow.querySelectorAll('[data-jf="palette-results"] .jf-option')
+          .length ?? 0) > 0,
+    );
+  });
+
+  const visibleLabels = (page: Page) =>
+    page.evaluate(() =>
+      [
+        ...window.__jobfillHarness!.shadow.querySelectorAll(
+          '[data-jf="palette-results"] .jf-option .jf-option-label',
+        ),
+      ].map((n) => n.textContent ?? ''),
+    );
+
+  const clickTab = (page: Page, id: string) =>
+    page.evaluate((catId) => {
+      window
+        .__jobfillHarness!.shadow.querySelector<HTMLButtonElement>(`[data-jf-cat="${catId}"]`)!
+        .click();
+    }, id);
+
+  test('browsing by category without typing anything', async ({ page }) => {
+    await clickTab(page, 'skills');
+    const skills = await visibleLabels(page);
+    expect(skills.length).toBeGreaterThan(0);
+    expect(skills.every((l) => l.includes('Skill'))).toBe(true);
+
+    await clickTab(page, 'work');
+    const work = await visibleLabels(page);
+    expect(work.length).toBeGreaterThan(0);
+    expect(work.some((l) => l.includes('Harbor Freight'))).toBe(true);
+
+    await clickTab(page, 'links');
+    const links = await visibleLabels(page);
+    expect(links.some((l) => l.includes('GitHub'))).toBe(true);
+    expect(links.every((l) => !l.includes('Company'))).toBe(true);
+  });
+
+  test('search composes with the selected category', async ({ page }) => {
+    const type = (text: string) =>
+      page.evaluate((q) => {
+        const input = window.__jobfillHarness!.shadow.querySelector<HTMLInputElement>(
+          '[data-jf="palette-search"]',
+        )!;
+        input.focus();
+        input.value = q;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }, text);
+
+    const labels = () =>
+      page.evaluate(() =>
+        [
+          ...window.__jobfillHarness!.shadow.querySelectorAll(
+            '[data-jf="palette-results"] .jf-option .jf-option-label',
+          ),
+        ].map((n) => n.textContent ?? ''),
+      );
+
+    // "claims" hits the Brightline WORK bullets when browsing Work…
+    await clickTab(page, 'work');
+    await type('claims');
+    await page.waitForFunction(() =>
+      [
+        ...window.__jobfillHarness!.shadow.querySelectorAll(
+          '[data-jf="palette-results"] .jf-option .jf-option-label',
+        ),
+      ].some((n) => (n.textContent ?? '').includes('Claims pipeline')),
+    );
+
+    // …and under Personal the work results are filtered OUT (fuzzy matching may still
+    // surface personal paragraphs — that's fine; no work rows may leak through).
+    await clickTab(page, 'personal');
+    await page.waitForFunction(() => {
+      const found = [
+        ...window.__jobfillHarness!.shadow.querySelectorAll(
+          '[data-jf="palette-results"] .jf-option .jf-option-label',
+        ),
+      ].map((n) => n.textContent ?? '');
+      return found.every((l) => !l.includes('Claims pipeline') && !l.includes('Brightline'));
+    });
+    expect((await labels()).every((l) => !l.includes('Harbor Freight'))).toBe(true);
+  });
+});

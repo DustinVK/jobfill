@@ -179,6 +179,19 @@ export const OVERLAY_STYLES = `
   }
   .jf-palette .jf-search { width: 100%; box-sizing: border-box; font-size: 15px; padding: 9px 10px; }
   .jf-palette-target { font-size: 11px; color: #9bb0c3; }
+  .jf-cats { display: flex; gap: 4px; flex-wrap: wrap; }
+  .jf-cat {
+    font: inherit;
+    font-size: 11px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid #33465c;
+    background: transparent;
+    color: #9bb0c3;
+    cursor: pointer;
+  }
+  .jf-cat:hover { background: #2a3a4d; }
+  .jf-cat-on { background: #17795e; border-color: #17795e; color: #fff; }
 
   .jf-toast {
     position: fixed;

@@ -132,7 +132,11 @@ bytes — in the same format the importer reads. Export before experimenting; **
 Press **Alt+Shift+Space** (or the **Search** button in the fill bar) on any page, even one
 jobfill can't classify at all:
 
-- fuzzy-search everything you've stored — snippets, bullets, answers, links;
+- **category tabs** (All / Personal / Work / Skills / Links / Education / Projects /
+  Answers) let you browse your whole library without typing — handy for copy-pasting;
+  each skill is also its own copyable entry;
+- fuzzy-search everything you've stored — snippets, bullets, answers, links (search and
+  the selected tab combine);
 - **Enter** fills the field that was focused when you opened the palette;
 - **Shift+Enter** copies to the clipboard instead (for widgets that resist filling);
 - 🔒-marked results are sensitive and ask for a second Enter before filling;

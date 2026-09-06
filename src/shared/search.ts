@@ -16,8 +16,13 @@ interface IndexEntry extends SearchResult {
   haystack: string;
 }
 
+type Category = SearchResult['category'];
+
 function entry(
-  partial: Omit<SearchResult, 'sensitive'> & { sensitive?: boolean },
+  partial: Omit<SearchResult, 'sensitive' | 'category'> & {
+    sensitive?: boolean;
+    category: Category;
+  },
   extraHaystack = '',
 ): IndexEntry {
   return {
@@ -31,13 +36,17 @@ function snippetEntries(
   snippet: Snippet,
   vault: Vault,
   labelPrefix: string,
+  category: Category,
   key?: string,
 ): IndexEntry[] {
   const version = activeVersion(vault);
   const resolved = resolveVariant(snippet, version);
   const label = snippet.label ?? labelPrefix;
   const tags = snippet.tags.join(' ');
-  const main = entry({ id: snippet.id, kind: 'snippet', label, value: resolved, key }, tags);
+  const main = entry(
+    { id: snippet.id, kind: 'snippet', label, value: resolved, key, category },
+    tags,
+  );
   // Non-default variants are individually searchable so the palette can offer any phrasing.
   const variants = snippet.variants
     .filter((v) => v.text !== resolved)
@@ -49,6 +58,7 @@ function snippetEntries(
           label: `${label} (${v.style})`,
           value: v.text,
           key,
+          category,
         },
         tags,
       ),
@@ -62,31 +72,46 @@ export function buildSearchIndex(vault: Vault): IndexEntry[] {
   const { profile } = vault;
 
   // Atoms: identity/contact/address/links.
-  const atoms: [string, string, string][] = [
-    ['identity.firstName', 'First name', profile.identity.firstName],
-    ['identity.lastName', 'Last name', profile.identity.lastName],
-    ['identity.fullName', 'Full name', fullName(profile.identity)],
-    ['contact.email', 'Email', profile.contact.email],
-    ['contact.phone', 'Phone', formatPhone(profile.contact.phone)],
-    ['address.city', 'City', profile.address.city ?? ''],
-    ['address.state', 'State', profile.address.state ?? ''],
-    ['address.postalCode', 'Postal code', profile.address.postalCode ?? ''],
-    ['address.country', 'Country', profile.address.country ?? ''],
-    ['address.full', 'Full address', formatAddressFull(profile.address)],
-    ['links.linkedin', 'LinkedIn', profile.links.linkedin ?? ''],
-    ['links.github', 'GitHub', profile.links.github ?? ''],
-    ['links.portfolio', 'Portfolio', profile.links.portfolio ?? ''],
-    ['links.website', 'Website', profile.links.website ?? ''],
-    ['skills', 'Skills', joinList(profile.skills)],
+  const atoms: [string, string, string, Category][] = [
+    ['identity.firstName', 'First name', profile.identity.firstName, 'personal'],
+    ['identity.lastName', 'Last name', profile.identity.lastName, 'personal'],
+    ['identity.fullName', 'Full name', fullName(profile.identity), 'personal'],
+    ['contact.email', 'Email', profile.contact.email, 'personal'],
+    ['contact.phone', 'Phone', formatPhone(profile.contact.phone), 'personal'],
+    ['address.city', 'City', profile.address.city ?? '', 'personal'],
+    ['address.state', 'State', profile.address.state ?? '', 'personal'],
+    ['address.postalCode', 'Postal code', profile.address.postalCode ?? '', 'personal'],
+    ['address.country', 'Country', profile.address.country ?? '', 'personal'],
+    ['address.full', 'Full address', formatAddressFull(profile.address), 'personal'],
+    ['links.linkedin', 'LinkedIn', profile.links.linkedin ?? '', 'links'],
+    ['links.github', 'GitHub', profile.links.github ?? '', 'links'],
+    ['links.portfolio', 'Portfolio', profile.links.portfolio ?? '', 'links'],
+    ['links.website', 'Website', profile.links.website ?? '', 'links'],
+    ['skills', 'Skills', joinList(profile.skills), 'skills'],
   ];
-  for (const [key, label, value] of atoms) {
-    if (value) entries.push(entry({ id: key, kind: 'atom', label, value, key }));
+  for (const [key, label, value, category] of atoms) {
+    if (value) entries.push(entry({ id: key, kind: 'atom', label, value, key, category }));
+  }
+  // Individual skills are copyable one at a time (tag widgets, "top skill" fields).
+  for (const skill of profile.skills) {
+    entries.push(
+      entry({
+        id: `skill:${skill}`,
+        kind: 'atom',
+        label: 'Skill',
+        value: skill,
+        category: 'skills',
+      }),
+    );
   }
 
-  if (profile.summary)
-    entries.push(...snippetEntries(profile.summary, vault, 'Summary', 'summary'));
+  if (profile.summary) {
+    entries.push(...snippetEntries(profile.summary, vault, 'Summary', 'personal', 'summary'));
+  }
   if (profile.coverLetter) {
-    entries.push(...snippetEntries(profile.coverLetter, vault, 'Cover letter', 'coverLetter.text'));
+    entries.push(
+      ...snippetEntries(profile.coverLetter, vault, 'Cover letter', 'personal', 'coverLetter.text'),
+    );
   }
 
   vault.work.forEach((work) => {
@@ -97,12 +122,19 @@ export function buildSearchIndex(vault: Vault): IndexEntry[] {
         kind: 'atom',
         label: `Company (${where})`,
         value: work.company,
+        category: 'work',
       }),
-      entry({ id: `${work.id}:title`, kind: 'atom', label: `Title (${where})`, value: work.title }),
+      entry({
+        id: `${work.id}:title`,
+        kind: 'atom',
+        label: `Title (${where})`,
+        value: work.title,
+        category: 'work',
+      }),
     );
-    entries.push(...snippetEntries(work.summary, vault, `Summary — ${where}`));
+    entries.push(...snippetEntries(work.summary, vault, `Summary — ${where}`, 'work'));
     work.bullets.forEach((bullet, i) =>
-      entries.push(...snippetEntries(bullet, vault, `Bullet ${i + 1} — ${where}`)),
+      entries.push(...snippetEntries(bullet, vault, `Bullet ${i + 1} — ${where}`, 'work')),
     );
   });
 
@@ -113,6 +145,7 @@ export function buildSearchIndex(vault: Vault): IndexEntry[] {
         kind: 'atom',
         label: 'School',
         value: education.school,
+        category: 'education',
       }),
     );
     if (education.degree) {
@@ -122,6 +155,7 @@ export function buildSearchIndex(vault: Vault): IndexEntry[] {
           kind: 'atom',
           label: 'Degree',
           value: education.degree,
+          category: 'education',
         }),
       );
     }
@@ -129,9 +163,17 @@ export function buildSearchIndex(vault: Vault): IndexEntry[] {
 
   vault.projects.forEach((project) => {
     entries.push(
-      entry({ id: `${project.id}:name`, kind: 'atom', label: 'Project', value: project.name }),
+      entry({
+        id: `${project.id}:name`,
+        kind: 'atom',
+        label: 'Project',
+        value: project.name,
+        category: 'projects',
+      }),
     );
-    entries.push(...snippetEntries(project.summary, vault, `Summary — ${project.name}`));
+    entries.push(
+      ...snippetEntries(project.summary, vault, `Summary — ${project.name}`, 'projects'),
+    );
   });
 
   for (const answer of vault.answers) {
@@ -144,6 +186,7 @@ export function buildSearchIndex(vault: Vault): IndexEntry[] {
           value: String(answer.value),
           key: answer.key ? `answers.${answer.key}` : `answers.custom:${answer.id}`,
           sensitive: answer.sensitive,
+          category: 'answers',
         },
         (answer.patterns ?? []).join(' '),
       ),
