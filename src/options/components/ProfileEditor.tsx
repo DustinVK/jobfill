@@ -243,6 +243,28 @@ export function ProfileEditor({
             onInput={(v) => setIn('links', 'website', v)}
           />
         </div>
+        <label class="field">
+          <span>
+            Link priority for repeated "Website 1/2/3" fields (optional, comma-separated: website,
+            portfolio, github, linkedin — default order shown)
+          </span>
+          <input
+            type="text"
+            value={(profile.links.order ?? []).join(', ')}
+            placeholder="website, portfolio, github, linkedin"
+            data-testid="links-order"
+            onChange={(e) => {
+              const order = (e.currentTarget as HTMLInputElement).value
+                .split(',')
+                .map((name) => name.trim())
+                .filter(Boolean);
+              onChange({
+                ...profile,
+                links: { ...profile.links, order: order.length > 0 ? order : undefined },
+              });
+            }}
+          />
+        </label>
       </section>
 
       <section class="panel">

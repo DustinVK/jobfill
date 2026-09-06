@@ -22,9 +22,10 @@ procedure exactly.
    - `short` — ≤ 140 characters.
    - `original` — the user's own phrasing, only when it differs from the above.
 3. **Interview once, batched.** Before emitting JSON, ask ONE round of questions covering
-   the gaps application forms will demand: phone country code, address granularity (city/state
-   at minimum), work-authorization / sponsorship / relocation answers, and how to handle
-   salary questions. Then emit.
+   the gaps application forms will demand: phone country code AND phone type
+   (mobile/home/work — forms ask constantly), address granularity (city/state at minimum),
+   work-authorization / sponsorship / relocation answers, and how to handle salary
+   questions. Then emit.
 4. **Never populate EEO entries** (gender, race, ethnicity, veteranStatus, disabilityStatus)
    unless the user explicitly provides them after you note they are optional and sensitive.
 5. **Validate before emitting.** The output must conform to the schema at

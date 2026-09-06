@@ -345,6 +345,19 @@ function rationalize(fields: FieldSignals[], results: Map<string, Classification
     }
   }
 
+  // --- Repeated website fields: N generic "URL/Website" fields must get N DISTINCT
+  // links (portfolio, GitHub, LinkedIn…) — not the same URL pasted N times. Multiple
+  // occurrences re-index onto links[i].url, which compose serves from the ranked link
+  // list. Explicit LinkedIn/GitHub fields keep their own keys; a single generic website
+  // field stays links.website (top-ranked link) for zero behavior change.
+  const websiteFields = fields.filter((f) => results.get(f.fieldId)?.key === 'links.website');
+  if (websiteFields.length > 1) {
+    websiteFields.forEach((field, index) => {
+      const result = results.get(field.fieldId);
+      if (result) result.key = `links[${index}].url`;
+    });
+  }
+
   // --- Section anchoring: date fields belong to the NEAREST PRECEDING section anchor
   // (a company/title field → that work group; a school field → that EDUCATION entry).
   // Fixes education "From / To" dates classifying as work dates, and keeps a group's

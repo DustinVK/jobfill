@@ -3,7 +3,7 @@
 Snapshot of ACTUAL classifier output (tests/unit/corpus.dom.test.ts); regenerate with
 `npx vitest run corpus -u` and review the diff.
 
-Fixtures: 62 | positive expectations: 98 | deny expectations: 12 | must-not-classify: 9
+Fixtures: 63 | positive expectations: 102 | deny expectations: 12 | must-not-classify: 9
 
 | Fixture / field | Expected | Got | Tier | Signal | Score |
 |---|---|---|---|---|---|
@@ -105,3 +105,7 @@ Fixtures: 62 | positive expectations: 98 | deny expectations: 12 | must-not-clas
 | workday-repeat-groups.html #g2-company | work[1].company | work[1].company | auto | label | 0.90 |
 | workday-repeat-groups.html #g2-desc | work[1].summary | work[1].summary | auto | label | 0.90 |
 | workday-repeat-groups.html #g2-title | work[1].title | work[1].title | auto | label | 0.90 |
+| workday-repeat-websites.html #li | links.linkedin | links.linkedin | auto | label | 0.90 |
+| workday-repeat-websites.html #w1 | links[0].url | links[0].url | auto | label | 0.90 |
+| workday-repeat-websites.html #w2 | links[1].url | links[1].url | auto | label | 0.90 |
+| workday-repeat-websites.html #w3 | links[2].url | links[2].url | auto | label | 0.90 |

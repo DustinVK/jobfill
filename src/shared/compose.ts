@@ -9,6 +9,7 @@ import type {
   AnswerEntry,
   AnswerValue,
   CanonicalKey,
+  Profile,
   ResumeVersion,
   Snippet,
   Vault,
@@ -107,6 +108,11 @@ export interface ComposedValue {
   truncated?: boolean;
   /** For choice widgets: the full target label set incl. synonyms (SPEC §5.4). */
   choiceTargets?: string[];
+  /**
+   * True when the value is a sensible ASSUMPTION rather than user-stated data (e.g. phone
+   * type "Mobile" with none stored) — such proposals never auto-fill, only suggest.
+   */
+  defaulted?: boolean;
 }
 
 /** Returned when a key parses but the vault has nothing for it. */
@@ -286,14 +292,27 @@ export function compose(
         const code = profile.contact.phone.countryCode.replace(/\D+/g, '');
         return code ? composed(`+${code}`, [code]) : EMPTY;
       }
-      case 'phoneType':
-        return profile.contact.phoneType
-          ? {
-              value: profile.contact.phoneType,
-              alternates: [],
-              choiceTargets: [profile.contact.phoneType],
-            }
-          : EMPTY;
+      case 'phoneType': {
+        if (profile.contact.phoneType) {
+          const synonyms =
+            profile.contact.phoneType === 'mobile'
+              ? ['mobile', 'cell', 'cellular', 'personal']
+              : [profile.contact.phoneType];
+          return {
+            value: profile.contact.phoneType,
+            alternates: [],
+            choiceTargets: synonyms,
+          };
+        }
+        // Nothing stored: "Mobile" is the near-universal answer — offered as a DEFAULT
+        // (suggest-only, never fill-all) so phone-type dropdowns aren't dead fields.
+        return {
+          value: 'Mobile',
+          alternates: ['Home', 'Work'],
+          choiceTargets: ['mobile', 'cell', 'cellular', 'personal'],
+          defaulted: true,
+        };
+      }
     }
     return undefined;
   }
@@ -332,6 +351,16 @@ export function compose(
 
   // --- links ---------------------------------------------------------------
   if (parsed.root === 'links') {
+    // Indexed form links[i].url (repeated "Website N" fields): the i-th DISTINCT link.
+    if (parsed.index !== undefined && parsed.field === 'url') {
+      const ranked = orderedLinks(profile);
+      const hit = ranked[parsed.index];
+      if (!hit) return EMPTY;
+      return composed(
+        hit.url,
+        ranked.filter((_, i) => i !== parsed.index).map((entry) => entry.url),
+      );
+    }
     const links = profile.links;
     switch (parsed.field) {
       case 'linkedin':
@@ -498,6 +527,40 @@ export function compose(
   if (parsed.root === 'documents') return undefined;
 
   return undefined;
+}
+
+/**
+ * All of the profile's links as one ranked, URL-deduped list. Default order: website →
+ * portfolio → github → linkedin → other[] (stored order). `links.order` promotes named
+ * slots/labels to the front; unlisted links follow in default order.
+ */
+export function orderedLinks(profile: Profile): { label: string; url: string }[] {
+  const links = profile.links;
+  const catalog: { label: string; url: string }[] = [
+    { label: 'website', url: links.website ?? '' },
+    { label: 'portfolio', url: links.portfolio ?? '' },
+    { label: 'github', url: links.github ?? '' },
+    { label: 'linkedin', url: links.linkedin ?? '' },
+    ...(links.other ?? []).map((o) => ({ label: o.label, url: o.url })),
+  ].filter((entry) => entry.url.trim().length > 0);
+
+  const ranking = (links.order ?? []).map((name) => name.trim().toLowerCase()).filter(Boolean);
+  const rankOf = (label: string) => {
+    const index = ranking.indexOf(label.toLowerCase());
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  const ranked = catalog
+    .map((entry, i) => ({ entry, rank: rankOf(entry.label), tiebreak: i }))
+    .sort((a, b) => a.rank - b.rank || a.tiebreak - b.tiebreak)
+    .map((r) => r.entry);
+
+  const seen = new Set<string>();
+  return ranked.filter((entry) => {
+    const key = entry.url.replace(/\/+$/, '').toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function alternateDates(value: string | undefined, current: DateFormat): string[] {

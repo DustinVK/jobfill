@@ -48,8 +48,12 @@ are skipped and listed. To see the flow with fictional data first, import
 Work through the tabs, then click **Save** (top right — edits are local to the page until
 saved; the header shows which sections have unsaved changes):
 
-- **Profile** — name, contact, address, links, master skill list, and a professional
-  summary with variant phrasings.
+- **Profile** — name, contact (including phone type — many forms ask; with none stored,
+  jobfill suggests "Mobile" but never auto-fills an assumption), address, links, master
+  skill list, and a professional summary with variant phrasings. When a form has repeated
+  "Website 1/2/3" fields, jobfill distributes your DISTINCT links across them (default
+  order: website → portfolio → GitHub → LinkedIn → other); the optional "Link priority"
+  box under Links re-ranks them.
 - **Work** — one entry per job. Each has a summary and bullet points, and every summary/
   bullet can hold several **variants** of the same fact: `impact` (metric-forward),
   `responsibilities` (duty-phrased, for government/Workday-style forms), `short`

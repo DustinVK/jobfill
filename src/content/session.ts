@@ -172,6 +172,14 @@ export class FillSession {
         }),
     );
 
+    // Defaulted proposals (assumptions like phone type "Mobile") never auto-fill —
+    // demote to suggest so they go through a confirm.
+    for (const entry of entries) {
+      if (entry.value?.defaulted && entry.classification.tier === 'auto') {
+        entry.classification = { ...entry.classification, tier: 'suggest' };
+      }
+    }
+
     if (token !== this.refreshToken) return this.state; // a newer refresh superseded this one
 
     this.state = {

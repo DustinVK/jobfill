@@ -186,3 +186,53 @@ describe('version switching changes composed output', () => {
     expect(summary?.value).toContain('Responsible for the order-routing platform');
   });
 });
+
+describe('ordered links for repeated website fields', () => {
+  it('links[i].url serves DISTINCT links in default order (dedup by URL)', () => {
+    const vault = sampleVault();
+    // Sample profile: portfolio + github + linkedin (no plain website) — portfolio and
+    // website fall back to each other in the singles, so dedup matters.
+    expect(compose(vault, 'links[0].url')?.value).toBe('https://mayaokafor.example.com');
+    expect(compose(vault, 'links[1].url')?.value).toBe('https://github.com/mayaokafor-example');
+    expect(compose(vault, 'links[2].url')?.value).toContain('linkedin.com');
+    expect(compose(vault, 'links[3].url')?.value).toBe(''); // ran out of distinct links
+    // Alternates offer the other links for popover swapping.
+    expect(compose(vault, 'links[0].url')?.alternates).toContain(
+      'https://github.com/mayaokafor-example',
+    );
+  });
+
+  it('links.order re-ranks; unlisted links follow in default order', () => {
+    const vault = sampleVault();
+    vault.profile.links.order = ['github', 'linkedin'];
+    expect(compose(vault, 'links[0].url')?.value).toBe('https://github.com/mayaokafor-example');
+    expect(compose(vault, 'links[1].url')?.value).toContain('linkedin.com');
+    expect(compose(vault, 'links[2].url')?.value).toBe('https://mayaokafor.example.com');
+  });
+
+  it('other[] links join the pool by their label', () => {
+    const vault = sampleVault();
+    vault.profile.links.other = [{ label: 'Blog', url: 'https://blog.example.com' }];
+    vault.profile.links.order = ['blog'];
+    expect(compose(vault, 'links[0].url')?.value).toBe('https://blog.example.com');
+  });
+});
+
+describe('phone type', () => {
+  it('stored phoneType composes with rich synonyms and no defaulted flag', () => {
+    const vault = sampleVault(); // sample has phoneType: mobile
+    const composedValue = compose(vault, 'contact.phoneType');
+    expect(composedValue?.value).toBe('mobile');
+    expect(composedValue?.choiceTargets).toContain('cell');
+    expect(composedValue?.defaulted).toBeUndefined();
+  });
+
+  it('missing phoneType proposes Mobile as a DEFAULT (never auto-fill)', () => {
+    const vault = sampleVault();
+    delete vault.profile.contact.phoneType;
+    const composedValue = compose(vault, 'contact.phoneType');
+    expect(composedValue?.value).toBe('Mobile');
+    expect(composedValue?.defaulted).toBe(true);
+    expect(composedValue?.alternates).toEqual(['Home', 'Work']);
+  });
+});

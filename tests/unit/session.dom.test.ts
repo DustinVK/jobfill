@@ -241,3 +241,42 @@ describe('repeated work groups + segmented dates (live Workday-form findings)', 
     expect((document.querySelector('#to-mm') as HTMLInputElement).value).toBe('');
   });
 });
+
+describe('defaulted proposals never auto-fill (phone type)', () => {
+  it('a phone-type select with nothing stored is demoted to suggest', async () => {
+    document.body.innerHTML = `
+      <label for="fn">First name</label><input id="fn">
+      <label for="ln">Last name</label><input id="ln">
+      <label for="em">Email</label><input id="em" type="email">
+      <label for="pt">Phone Type</label>
+      <select id="pt"><option>Select…</option><option>Mobile</option><option>Home</option></select>`;
+    const session = await makeSessionWithoutPhoneType();
+    await session.refresh(document);
+    const entry = entryBySelector(session, '#pt');
+    expect(entry.value?.defaulted).toBe(true);
+    expect(entry.classification.tier).toBe('suggest');
+    expect(session.autoEntries().map((e) => e.field.element.id)).not.toContain('pt');
+    // Explicit confirm still fills it.
+    const result = await session.fillEntry(entry, undefined, true);
+    expect(result.ok).toBe(true);
+    const select = document.querySelector('#pt') as HTMLSelectElement;
+    expect(select.selectedOptions[0]?.text).toBe('Mobile');
+  });
+});
+
+async function makeSessionWithoutPhoneType(): Promise<FillSession> {
+  const channel = new MemoryChannel({ tabId: 1, frameId: 0, origin: 'https://jobs.example.com' });
+  const storage = createMemoryStorage();
+  const seeded = mergeAdd(createEmptyVault(), sampleImport as unknown as InterchangeDocument);
+  delete seeded.vault.profile.contact.phoneType;
+  await storage.local.set('vault', { v: 1, enc: 'none', data: seeded.vault });
+  const env: BackgroundEnv = {
+    storage,
+    blobs: new MemoryBlobStore(),
+    server: channel,
+    scripting: createMemoryScripting(),
+    runtime: createMemoryRuntime(),
+  };
+  env.server.serve(createRouter({ env }));
+  return new FillSession(new ProtocolClient(channel));
+}

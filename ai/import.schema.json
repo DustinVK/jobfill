@@ -247,6 +247,13 @@
                   }
                 }
               }
+            },
+            "order": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Optional ranking for repeated website fields: website|portfolio|github|linkedin or an 'other' label."
             }
           }
         },

@@ -151,6 +151,12 @@ export interface Links {
   portfolio?: string;
   website?: string;
   other?: { label: string; url: string }[];
+  /**
+   * Optional ranking for repeated "Website 1/2/3" fields: entries are the built-in slot
+   * names (website, portfolio, github, linkedin) or an `other` entry's label. Links not
+   * listed follow in the default order (website → portfolio → github → linkedin → other).
+   */
+  order?: string[];
 }
 
 export interface Profile {
@@ -385,6 +391,8 @@ export const SIMPLE_CANONICAL_KEYS = [
 
 /** Indexed key families: `<family>[i].<field>`. */
 export const INDEXED_CANONICAL_FIELDS: Record<string, readonly string[]> = {
+  /** The i-th DISTINCT link, in ranked order — for repeated "Website N" fields. */
+  links: ['url'],
   work: [
     'company',
     'title',
