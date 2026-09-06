@@ -273,6 +273,7 @@ export class OverlayUI {
     pop.setAttribute('data-jf', 'popover');
     pop.setAttribute('role', 'dialog');
     pop.setAttribute('aria-label', entry.classification.key ?? 'Field suggestion');
+    pop.setAttribute('aria-modal', 'false'); // anchored, non-modal: Tab intentionally moves fields (SPEC §3.4)
 
     // Header: canonical key + confidence.
     const head = el(this.doc, 'div', 'jf-popover-head');
@@ -649,8 +650,22 @@ export class OverlayUI {
     };
     search.addEventListener('input', runSearch);
 
+    palette.setAttribute('aria-modal', 'true');
     palette.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Tab') {
+        // Focus trap (rung-4 a11y): Tab cycles within the palette, never escapes to the page.
+        const focusables = [...palette.querySelectorAll<HTMLElement>('input, button')].filter(
+          (node) => !node.hidden,
+        );
+        if (focusables.length > 0) {
+          event.preventDefault();
+          const active = this.deps.shadow.activeElement as HTMLElement | null;
+          const index = active ? focusables.indexOf(active) : -1;
+          const next =
+            focusables[(index + (event.shiftKey ? -1 : 1) + focusables.length) % focusables.length];
+          next?.focus();
+        }
+      } else if (event.key === 'Escape') {
         event.preventDefault();
         this.closePalette();
       } else if (event.key === 'ArrowDown') {
