@@ -1,6 +1,6 @@
 # Progress
 
-Status: rung 1 — complete, awaiting review | Last green checkpoint: 8042655 00:50
+Status: rung 2 — classifier+fillers done, overlay in progress | Last green checkpoint: 9afebdb 01:12
 
 This file is the re-anchor point after context loss. It is written for a reader with no memory
 of the session: what is true in the repo right now, what was decided, and what is not done.
@@ -85,6 +85,32 @@ of the session: what is true in the repo right now, what was decided, and what i
 - P2s parked (see Parked): count-pinning innerHTML by line-source; `no-restricted-properties`
   for globalThis.browser; running dist/content.js itself in an e2e.
 
+## Rung 1 review findings (fresh subagent; all P0/P1 fixed at 9afebdb)
+
+- **P0 matchChoice could select the OPPOSITE answer** on verbose ATS yes/no labels ("no" matched
+  inside "now"; substring floor equaled the threshold). Rewritten: token-boundary containment,
+  leading-token bonus, negation-polarity guard. Regression tests use real sponsorship /
+  work-authorization / veteran label sets driven by `booleanChoiceTargets` output.
+- P1 fixes: EEO answers can no longer enter via `vault.patch` while the gate is off, and
+  always-sensitive keys are re-forced on every write (`sanitizeVault` in the single write path) ·
+  import is atomic (mergeAdd runs on a clone; live vault untouched on failure) · export→wipe→import
+  no longer drops version config (name collisions merge config instead of skipping) · a fresh
+  vault's export re-validates against the schema (empty identity/email allowed) · DataService
+  memoizes cold loads (concurrent readers share one vault) and file add/delete are real methods ·
+  `vault.*`/`file.list|add|delete` are refused to web-origin senders (content scripts get only the
+  fill-time surface — stricter than SPEC §8.3's "redacted slice", logged as the tonight-shape) ·
+  entities added in the options app join include-all versions (shared `recordIncludeAll` helper) ·
+  options reload paths confirm before discarding unsaved edits + beforeunload guard.
+- P2 fixes: AES-GCM decode bounds on envelope iteration counts (min 100k / max 5M, injectable for
+  tests) + `kdf: null` rejection + a test pinning `PBKDF2_ITERATIONS ≥ 600_000` · `plain-join`
+  keeps the paragraph · `work[i].bullets` respects the length budget · education dates get format
+  alternates · required profile scalars keep `''` instead of `undefined` · compose opts validated
+  not cast · `revokeObjectURL` deferred · salary sensitivity now default-on but user-changeable
+  (EEO + criminalDisclosure stay locked) — matches SPEC §7.9 "salary if the user marks it".
+- P2 parked (see Parked): `settings.encryption.enabled` not yet honored by DataService ·
+  `answers.custom` bare-key compose · SnippetEditor testid collision for same-style variants ·
+  ComposedValue lacks a sensitive flag (session derives sensitivity from classification instead).
+
 ## Decisions
 
 - **2026-09-06 00:20 — Overnight plan lives at repo root, not `docs/`.** The seed commit put
@@ -162,6 +188,13 @@ of the session: what is true in the repo right now, what was decided, and what i
 
 _(nothing)_
 
+## Deviations (cont.)
+
+- **Rung order overlap.** Rung 2 implementation (classifier, fixtures, fillers) started while the
+  rung-1 review subagent was still running, instead of strictly after it. All rung-1 P0/P1
+  findings were fixed before any rung-2 UI work continued and before any rung-2 DoD claim; logged
+  here for honesty.
+
 ## Parked
 
 - Review P2: pin the accepted `UNSAFE_VAR_ASSIGNMENT` warnings to their exact source construct
@@ -173,3 +206,7 @@ _(nothing)_
   scanned; the harness bundle wraps the same modules).
 - `FileStore.pruneOrphans` exists but nothing calls it yet — wire to an options "clean up" action
   or post-import step in a later rung.
+- `settings.encryption.enabled` is stored but not honored — DataService always uses PlainCodec
+  tonight (noted in its doc comment); the unlock flow is the post-v1 encryption milestone.
+- SnippetEditor `data-testid="variant-text-<style>"` collides when two variants share a style.
+- `answers.custom` (bare, no id) composes EMPTY; only `answers.custom:<id>` resolves.
