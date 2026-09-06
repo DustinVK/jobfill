@@ -1,0 +1,21 @@
+# Mirrors `npm run verify` + the Playwright e2e (OVERNIGHT_PLAN §6; SPEC §11.7).
+name: verify
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npx playwright install firefox --with-deps
+      - run: npm run e2e
+        env:
+          CI: 'true'
