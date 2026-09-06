@@ -1,6 +1,6 @@
 # Progress
 
-Status: rung 1 — data core logic green, options UI in progress | Last green checkpoint: e0d09dd (rung 0) 00:30
+Status: rung 1 — complete, awaiting review | Last green checkpoint: 8042655 00:50
 
 This file is the re-anchor point after context loss. It is written for a reader with no memory
 of the session: what is true in the repo right now, what was decided, and what is not done.
@@ -29,10 +29,15 @@ of the session: what is true in the repo right now, what was decided, and what i
 - [x] `FileStore` over the blob-store adapter; IndexedDB impl tested with `fake-indexeddb`
 - [x] `compose.ts` + `format.ts` with thorough unit tests (variant resolution, phone/date/name/address
       formats, renderers, length-budget ladder, choice matching)
-- [ ] Options app: profile, work experience + variant editor, answers bank, versions list, files placeholder
-- [x] Export/import JSON + schema (precompiled validator) + merge-add + summary data (UI screen pending)
+- [x] Options app: profile, work experience + variant editor (style chips, char counts, default
+      marker), answers bank (sensitive flags, EEO opt-in gate that removes entries on opt-out),
+      versions list (rename, stylePriority, set-active), files placeholder tab
+- [x] Export/import JSON + schema (precompiled validator) + merge-add + import summary screen +
+      path-precise error report with copy button
 - [x] `ai/examples/sample-import.json` — validates against the schema in a test
-- [~] **DoD-1** — export→wipe→import round-trip proven by integration test; options-app e2e pending
+- [x] **DoD-1:** verify green · export→wipe→import round-trip integration test (incl. file bytes
+      as a real File over the protocol) · sample import schema test · options app proven by 6
+      Playwright e2e tests incl. the work-experience-with-2-bullet-variants reload check
 
 ### Rung 2 — Fill engine core
 
@@ -115,6 +120,13 @@ of the session: what is true in the repo right now, what was decided, and what i
 - **2026-09-06 00:45 — Loose vs. strict types.** Interchange documents get their own `Loose*`
   types (ids optional) in types.ts rather than reusing vault types with casts — the importer is
   the single materialization point (`interchange.ts`).
+- **2026-09-06 00:58 — Options save model is explicit-Save with section-level dirty tracking**,
+  not autosave: predictable writes through `vault.patch`, and the e2e can assert the "Saved."
+  status deterministically.
+- **2026-09-06 00:58 — Dev/e2e options storage is localStorage-backed**
+  (`src/shared/adapters/web-storage.ts`) so reloads keep data; the extension itself still uses
+  `browser.storage.local` only. File bytes in the dev harness stay in-memory (noted in the entry
+  comment); real IndexedDB persistence is unit-tested with fake-indexeddb instead.
 - **2026-09-06 00:46 — `answers.salaryExpectation` ships sensitive-by-default** (SPEC §13 open
   question 3, leaning-yes adopted): forced sensitive on import; user can unmark in options.
 
