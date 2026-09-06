@@ -1,0 +1,46 @@
+{
+  "name": "jobfill",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-only resume storage and job application autofill for Firefox.",
+  "license": "MPL-2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:harness": "node scripts/build.mjs --harness",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "npm run build && npm run build:harness && playwright test",
+    "check:local-only": "node scripts/check-local-only.mjs",
+    "lint:ext": "node scripts/check-ext-lint.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:local-only && npm run lint:ext",
+    "dev:options": "node scripts/dev-server.mjs",
+    "demo": "node scripts/dev-server.mjs --demo"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.4.1",
+    "esbuild": "0.28.2",
+    "eslint": "10.10.0",
+    "fake-indexeddb": "6.2.5",
+    "globals": "17.12.0",
+    "jsdom": "30.0.1",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.69.0",
+    "vitest": "5.0.0",
+    "web-ext": "10.6.0"
+  }
+}
