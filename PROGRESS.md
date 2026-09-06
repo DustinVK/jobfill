@@ -1,6 +1,6 @@
 # Progress
 
-Status: rung 0 — scaffold green | Last green checkpoint: (pending first rung commit)
+Status: rung 1 — data core logic green, options UI in progress | Last green checkpoint: e0d09dd (rung 0) 00:30
 
 This file is the re-anchor point after context loss. It is written for a reader with no memory
 of the session: what is true in the repo right now, what was decided, and what is not done.
@@ -23,15 +23,16 @@ of the session: what is true in the repo right now, what was decided, and what i
 
 ### Rung 1 — Data core
 
-- [ ] `src/shared/types.ts` — full §4 data model
-- [ ] `src/shared/messages.ts` — §8.3 protocol + payload validation
-- [ ] `DataService` + `PlainCodec` + `AesGcmCodec` (round-trip, wrong passphrase, tampered ct)
-- [ ] `FileStore` over IndexedDB (`fake-indexeddb` in tests)
-- [ ] `compose.ts` + `format.ts` with thorough unit tests
+- [x] `src/shared/types.ts` — full §4 data model
+- [x] `src/shared/messages.ts` — §8.3 protocol + payload validation helpers
+- [x] `DataService` + `PlainCodec` + `AesGcmCodec` (round-trip, wrong passphrase, tampered ct — all tested)
+- [x] `FileStore` over the blob-store adapter; IndexedDB impl tested with `fake-indexeddb`
+- [x] `compose.ts` + `format.ts` with thorough unit tests (variant resolution, phone/date/name/address
+      formats, renderers, length-budget ladder, choice matching)
 - [ ] Options app: profile, work experience + variant editor, answers bank, versions list, files placeholder
-- [ ] Export/import JSON + ajv schema + merge-add + summary screen
-- [ ] `ai/examples/sample-import.json`
-- [ ] **DoD-1**
+- [x] Export/import JSON + schema (precompiled validator) + merge-add + summary data (UI screen pending)
+- [x] `ai/examples/sample-import.json` — validates against the schema in a test
+- [~] **DoD-1** — export→wipe→import round-trip proven by integration test; options-app e2e pending
 
 ### Rung 2 — Fill engine core
 
@@ -53,6 +54,31 @@ of the session: what is true in the repo right now, what was decided, and what i
 ### Rung 4 — Polish (only if 0–3 green)
 
 - [ ] README · `npm run demo` · overlay a11y · import dry-run diff · combobox fillers · CI yaml
+
+## Rung 0 review findings (fresh subagent, fixed before rung 1 commit)
+
+- **P0 check-local-only bypassable** → rewrote as 3 layers: URL-literal scan (exact allowlist,
+  origin-parsed), network-primitive scan (fetch/XHR/WebSocket/EventSource/sendBeacon/importScripts,
+  no allowlist), and a required `connect-src 'none'` + `default-src 'self'` CSP in the manifest.
+  All four reviewer bypasses (joined-host fetch, sendBeacon, constructed WebSocket, suffix-host URL)
+  verified caught.
+- **P1 lint gate failed open** → check-ext-lint now fails closed on unparseable/mis-shaped reports
+  and non-zero linter exits, and pins exact expected warning counts per (code, file).
+- **P1 sender origin fell back to top-tab URL** → removed; origin/url now come from the sending
+  frame only, per SPEC §8.3. Site-scoped handlers must reject origin-less requests.
+- **P1 IndexedDbBlobStore** → writes resolve on transaction commit (not request success), aborts
+  reject, failed opens are not cached, `onversionchange` drops the handle. Tested with fake-indexeddb.
+- **P1 harness re-injection split-brain** → harness entry now guards on `window.__jobfillHarness`.
+- **P1 MemoryChannel didn't clone** → now structured-clones request and reply, matching real
+  `runtime.sendMessage` (File/Blob survive; functions throw). Test added.
+- **P1 invocation paths untested** → tests/unit/invoke.test.ts covers command→injection incl.
+  partial frame failure.
+- P2s fixed opportunistically: dev-server crash on malformed escapes; tsconfig `include` claim;
+  version now injected from manifest.json at build; trivial e2e assertion removed; stale comments
+  (activate(), createOverlayRoot, e2e helper world caveat); dead `appendStyles` removed;
+  Preact MIT notices retained via `legalComments: 'inline'`.
+- P2s parked (see Parked): count-pinning innerHTML by line-source; `no-restricted-properties`
+  for globalThis.browser; running dist/content.js itself in an e2e.
 
 ## Decisions
 
@@ -81,9 +107,38 @@ of the session: what is true in the repo right now, what was decided, and what i
   no page-reachable reference (SPEC §7.9); only the never-shipped harness entry exposes one.
 - **2026-09-06 00:28 — Prettier does not format Markdown.** It reflowed SPEC.md, which CLAUDE.md
   forbids editing. `*.md` and `.claude/` are in `.prettierignore`; both files were restored.
+- **2026-09-06 00:24 — devDependency `@types/node`**: required for scripts/config typing
+  (node:fs, node:path etc. in build scripts and playwright config). No runtime footprint.
+- **2026-09-06 00:45 — Import schema is hand-authored** (`ai/import.schema.json`), per the plan's
+  "hand-authored is fine" allowance; a unit test validates the sample fixture against it and a
+  mutation test proves it rejects bad shapes.
+- **2026-09-06 00:45 — Loose vs. strict types.** Interchange documents get their own `Loose*`
+  types (ids optional) in types.ts rather than reusing vault types with casts — the importer is
+  the single materialization point (`interchange.ts`).
+- **2026-09-06 00:46 — `answers.salaryExpectation` ships sensitive-by-default** (SPEC §13 open
+  question 3, leaning-yes adopted): forced sensitive on import; user can unmark in options.
 
 ## Deviations
 
+- **manifest.json deviates from SPEC §8.2 "verbatim" in two keys** (both logged per CLAUDE.md):
+  `icons` (referenced by `action.default_icon`; a manifest without top-level icons ships a blank
+  AMO/about:addons tile) and `content_security_policy` with `connect-src 'none'` — the
+  browser-enforced form of SPEC §1.1's local-only guarantee, added on Rung 0 review finding P0-1.
+  Consequence: ajv's runtime schema compiler (`new Function`) would violate this CSP, so the import
+  validator is precompiled at build time (`scripts/gen-validator.mjs`, ajv standalone codegen);
+  no ajv runtime ships in any bundle.
+- **SPEC §10.2 places `compose.ts` under `src/background/`; CLAUDE.md requires pure logic in
+  `src/shared/`.** Resolved in CLAUDE.md's favor: pure composition lives in `src/shared/compose.ts`,
+  and the background router calls it. Same for search (`src/shared/search.ts`).
+- **SPEC §8.3 names `vault.patch(ops: PatchOp[])`.** Tonight's PatchOps are typed whole-section
+  replacements, not a generic JSON-patch — every write stays a validated section swap, which is
+  strictly easier to reason about for the options app and avoids inventing a patch grammar the
+  spec doesn't define.
+- **`interchange.ts` extends "everything" versions on import.** SPEC §9.2 doesn't say what
+  merge-add does to existing versions' include lists. Rule chosen: a version that included every
+  entity of a type before the import keeps including everything after (preserves the auto-created
+  "Everything / impact-first" semantics); curated subsets are untouched. Caught by a compose test
+  that found imports were invisible to the default version.
 - **Accepted `web-ext lint` warnings (4).** `KEY_FIREFOX_UNSUPPORTED_BY_MIN_VERSION` and its Android
   twin fire because SPEC §8.2 pins `strict_min_version: 128.0` while also requiring
   `gecko.data_collection_permissions` (mandatory for new AMO submissions since Nov 2025; the key
@@ -97,4 +152,12 @@ _(nothing)_
 
 ## Parked
 
-_(nothing yet)_
+- Review P2: pin the accepted `UNSAFE_VAR_ASSIGNMENT` warnings to their exact source construct
+  (`__html`) instead of a per-file count of 1.
+- Review P2: eslint `no-restricted-properties` for `globalThis.browser` / `window.browser`, and
+  restricted globals for fetch/XHR/WebSocket in src/ (the dist-level primitive scan covers the
+  shipped artifact today).
+- Review P2: an e2e that executes `dist/content.js` itself (prod bundle currently only built and
+  scanned; the harness bundle wraps the same modules).
+- `FileStore.pruneOrphans` exists but nothing calls it yet — wire to an options "clean up" action
+  or post-import step in a later rung.

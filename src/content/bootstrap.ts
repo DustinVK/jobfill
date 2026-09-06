@@ -14,7 +14,7 @@ const GUARD = '__jobfillSession';
 export interface ContentSession {
   client: ProtocolClient;
   overlay: OverlayRoot;
-  /** Re-invoked while already active: re-scan and re-show. */
+  /** Re-invoked while already active. TODO(rung 2): trigger a re-scan; today it only re-shows. */
   activate(): void;
   teardown(): void;
 }

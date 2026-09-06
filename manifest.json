@@ -3,16 +3,35 @@
   "name": "jobfill",
   "version": "0.1.0",
   "description": "Local-only resume storage and job application autofill. Your data never leaves your browser.",
-  "background": { "scripts": ["background.js"], "type": "module" },
-  "action": { "default_popup": "popup.html", "default_icon": "icons/32.png" },
-  "options_ui": { "page": "options.html", "open_in_tab": true },
-  "icons": { "32": "icons/32.png", "48": "icons/48.png", "96": "icons/96.png" },
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icons/32.png"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "96": "icons/96.png"
+  },
   "permissions": ["storage", "scripting", "activeTab"],
   "optional_host_permissions": ["<all_urls>"],
   "commands": {
-    "_execute_action": { "suggested_key": { "default": "Alt+Shift+J" } },
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+J"
+      }
+    },
     "open-palette": {
-      "suggested_key": { "default": "Alt+Shift+Space" },
+      "suggested_key": {
+        "default": "Alt+Shift+Space"
+      },
       "description": "Search snippets and fill the focused field"
     }
   },
@@ -20,7 +39,12 @@
     "gecko": {
       "id": "jobfill@occamsgarage.com",
       "strict_min_version": "128.0",
-      "data_collection_permissions": { "required": ["none"] }
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; img-src 'self' data:; object-src 'none'; connect-src 'none'"
   }
 }

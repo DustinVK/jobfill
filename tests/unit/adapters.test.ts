@@ -47,7 +47,14 @@ describe('protocol', () => {
   it('answers ping through the router', async () => {
     const { channel } = makeEnv();
     const client = new ProtocolClient(channel);
-    expect(await client.send({ t: 'ping' })).toEqual({ pong: true, version: '0.1.0' });
+    const reply = await client.send({ t: 'ping' });
+    expect(reply.pong).toBe(true);
+    expect(typeof reply.version).toBe('string');
+  });
+
+  it('clones messages like real structured-clone messaging (uncloneable payloads throw)', async () => {
+    const { channel } = makeEnv();
+    await expect(channel.send({ t: 'ping', cb: () => 1 })).rejects.toThrow();
   });
 
   it('surfaces unknown requests as errors instead of silent undefined', async () => {

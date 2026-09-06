@@ -49,14 +49,23 @@ export class BrowserMessageTransport implements MessageTransport {
 
 /** Background side of `runtime.onMessage`. */
 export class BrowserMessageServer implements MessageServer {
+  private served = false;
+
   serve(handler: MessageHandler): void {
+    // One listener per server: two promise-returning listeners would both claim every
+    // message in Firefox, and the loser's reply is dropped.
+    if (this.served) throw new Error('jobfill: BrowserMessageServer.serve called twice');
+    this.served = true;
     browser.runtime.onMessage.addListener((message, sender) => {
       // Returning a promise is the Firefox-native reply channel (no sendResponse dance).
+      // origin/url come from the sending FRAME only (SPEC §8.3: site memory is keyed by the
+      // sender frame's origin, never the top tab's) — no tab-level fallback; site-scoped
+      // handlers must reject requests that arrive without an origin.
       return handler(message, {
         tabId: sender.tab?.id,
         frameId: sender.frameId,
-        origin: sender.origin ?? originOf(sender.url ?? sender.tab?.url),
-        url: sender.url ?? sender.tab?.url,
+        origin: sender.origin ?? originOf(sender.url),
+        url: sender.url,
       });
     });
   }
@@ -90,8 +99,19 @@ export class IndexedDbBlobStore implements BlobStoreAdapter {
       req.onupgradeneeded = () => {
         if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE);
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        // If the DB is deleted/upgraded elsewhere, drop the cached handle so the next call reopens.
+        req.result.onversionchange = () => {
+          req.result.close();
+          this.dbPromise = undefined;
+        };
+        resolve(req.result);
+      };
       req.onerror = () => reject(req.error ?? new Error('indexedDB open failed'));
+    }).catch((err: unknown) => {
+      // Never cache a rejected open — a transient failure would poison the store forever.
+      this.dbPromise = undefined;
+      throw err;
     });
     return this.dbPromise;
   }
@@ -101,8 +121,21 @@ export class IndexedDbBlobStore implements BlobStoreAdapter {
     return new Promise<T>((resolve, reject) => {
       const transaction = db.transaction(STORE, mode);
       const request = run(transaction.objectStore(STORE));
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error('indexedDB request failed'));
+      let result: T;
+      request.onsuccess = () => {
+        result = request.result;
+        // Reads can resolve on request success; writes must wait for the COMMIT — the
+        // success event fires before the transaction is durable, and an abort after it
+        // (quota, event-page teardown) would otherwise be silent data loss.
+        if (mode === 'readonly') resolve(result);
+      };
+      transaction.oncomplete = () => {
+        if (mode !== 'readonly') resolve(result);
+      };
+      const fail = () =>
+        reject(transaction.error ?? request.error ?? new Error('indexedDB failed'));
+      transaction.onabort = fail;
+      transaction.onerror = fail;
     });
   }
 

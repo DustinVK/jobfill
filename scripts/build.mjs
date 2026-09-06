@@ -1,7 +1,7 @@
 // Build entrypoints into dist/ (shippable extension) and dist-harness/ (e2e-only bundle).
 // `node scripts/build.mjs [--harness] [--watch]`
 import { build, context } from 'esbuild';
-import { cpSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -9,6 +9,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const harnessOnly = args.includes('--harness');
 const watch = args.includes('--watch');
+
+const manifestVersion = JSON.parse(
+  readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'),
+).version;
 
 const common = {
   bundle: true,
@@ -18,10 +22,13 @@ const common = {
   minify: false,
   sourcemap: false,
   logLevel: 'info',
-  legalComments: 'none',
+  legalComments: 'inline', // keep vendored MIT notices (Preact) in the shipped bundle
   jsx: 'automatic',
   jsxImportSource: 'preact',
-  define: { 'process.env.NODE_ENV': '"production"' },
+  define: {
+    'process.env.NODE_ENV': '"production"',
+    __JOBFILL_VERSION__: JSON.stringify(manifestVersion),
+  },
 };
 
 /** @type {import('esbuild').BuildOptions[]} */

@@ -40,15 +40,21 @@ async function resolveFile(urlPath) {
 }
 
 createServer(async (req, res) => {
-  const url = new URL(req.url ?? '/', 'http://localhost');
-  const file = await resolveFile(url.pathname);
-  if (!file) {
-    res.writeHead(404, { 'content-type': 'text/plain' });
-    res.end('not found');
-    return;
+  try {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const file = await resolveFile(url.pathname);
+    if (!file) {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('not found');
+      return;
+    }
+    res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' });
+    res.end(await readFile(file));
+  } catch (err) {
+    // The dev server backs Playwright's webServer — it must survive any request.
+    res.writeHead(500, { 'content-type': 'text/plain' });
+    res.end(String(err));
   }
-  res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' });
-  res.end(await readFile(file));
 }).listen(port, () => {
   console.log(`jobfill dev server → http://localhost:${port}/`);
   console.log(`  options (in-memory adapters): http://localhost:${port}/options-dev.html`);

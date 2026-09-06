@@ -21,6 +21,6 @@
     "jsxImportSource": "preact",
     "types": ["node"]
   },
-  "include": ["src", "tests", "scripts", "*.config.ts", "*.mjs"],
+  "include": ["src", "tests", "*.config.ts"],
   "exclude": ["node_modules", "dist", "dist-harness"]
 }

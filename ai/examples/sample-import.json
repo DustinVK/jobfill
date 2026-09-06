@@ -1,0 +1,244 @@
+{
+  "$schema": "https://occamsgarage.com/jobfill/import.schema.json",
+  "schemaVersion": 1,
+  "profile": {
+    "identity": { "firstName": "Maya", "lastName": "Okafor", "preferredName": "Maya" },
+    "contact": {
+      "email": "maya.okafor@example.com",
+      "phone": { "countryCode": "1", "national": "6165550142" },
+      "phoneType": "mobile"
+    },
+    "address": {
+      "city": "Grand Rapids",
+      "state": "MI",
+      "postalCode": "49503",
+      "country": "United States"
+    },
+    "links": {
+      "linkedin": "https://www.linkedin.com/in/maya-okafor-example",
+      "github": "https://github.com/mayaokafor-example",
+      "portfolio": "https://mayaokafor.example.com"
+    },
+    "summary": {
+      "label": "Professional summary",
+      "variants": [
+        {
+          "style": "impact",
+          "text": "Backend engineer with 6 years building payment and logistics systems; cut fulfillment latency 40% at Harbor Freight Logistics and led a 4-person platform team."
+        },
+        {
+          "style": "responsibilities",
+          "text": "Backend engineer responsible for designing, building, and operating payment and logistics services, leading a small platform team, and maintaining CI/CD infrastructure."
+        },
+        {
+          "style": "short",
+          "text": "Backend engineer, 6 years in payments and logistics; team lead."
+        }
+      ]
+    },
+    "skills": ["TypeScript", "Node.js", "PostgreSQL", "Kubernetes", "AWS", "Terraform"],
+    "languages": [
+      { "name": "English", "level": "Native" },
+      { "name": "Igbo", "level": "Conversational" }
+    ]
+  },
+  "work": [
+    {
+      "company": "Harbor Freight Logistics",
+      "location": "Grand Rapids, MI",
+      "title": "Senior Software Engineer",
+      "titleVariants": [
+        { "style": "impact", "text": "Senior Software Engineer, Platform" },
+        { "style": "responsibilities", "text": "Software Engineer III" }
+      ],
+      "startDate": "2022-03",
+      "current": true,
+      "summary": {
+        "variants": [
+          {
+            "style": "impact",
+            "text": "Own the order-routing platform that moves 2M packages/month; led the rewrite that cut p99 routing latency from 900ms to 210ms."
+          },
+          {
+            "style": "responsibilities",
+            "text": "Responsible for the order-routing platform: service design, on-call rotation, capacity planning, and mentoring two junior engineers."
+          },
+          { "style": "short", "text": "Own order routing (2M pkgs/mo); led latency rewrite." }
+        ]
+      },
+      "bullets": [
+        {
+          "label": "Routing rewrite",
+          "tags": ["performance", "go", "postgres"],
+          "variants": [
+            {
+              "style": "impact",
+              "text": "Rewrote the routing engine in Go with PostgreSQL partitioning, cutting p99 latency 77% and saving $18k/month in compute."
+            },
+            {
+              "style": "responsibilities",
+              "text": "Redesigned and reimplemented the routing engine, including database partitioning and load testing."
+            },
+            { "style": "short", "text": "Rewrote routing engine; p99 −77%, −$18k/mo." }
+          ]
+        },
+        {
+          "label": "On-call program",
+          "tags": ["leadership", "sre"],
+          "variants": [
+            {
+              "style": "impact",
+              "text": "Built the team's on-call program from scratch; MTTR dropped from 4h to 35min within two quarters."
+            },
+            {
+              "style": "responsibilities",
+              "text": "Established on-call rotation, runbooks, and incident review process for the platform team."
+            }
+          ]
+        }
+      ],
+      "skills": ["Go", "PostgreSQL", "Kubernetes"]
+    },
+    {
+      "company": "Brightline Health",
+      "location": "Remote",
+      "title": "Software Engineer",
+      "startDate": "2019-06",
+      "endDate": "2022-02",
+      "current": false,
+      "summary": {
+        "variants": [
+          {
+            "style": "impact",
+            "text": "Built HIPAA-compliant claims ingestion handling 300k claims/day; zero data-loss incidents in three years."
+          },
+          {
+            "style": "responsibilities",
+            "text": "Developed and maintained claims ingestion pipelines and internal tooling for the billing team."
+          },
+          { "style": "short", "text": "Built claims ingestion (300k/day), zero data loss." }
+        ]
+      },
+      "bullets": [
+        {
+          "label": "Claims pipeline",
+          "tags": ["etl", "compliance"],
+          "variants": [
+            {
+              "style": "impact",
+              "text": "Designed idempotent ETL pipeline that reprocessed 40M historical claims with zero duplicates."
+            },
+            {
+              "style": "responsibilities",
+              "text": "Implemented ETL pipelines for claims ingestion with reprocessing support."
+            },
+            { "style": "short", "text": "Idempotent ETL; 40M claims, zero dupes." }
+          ]
+        }
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "Grand Valley State University",
+      "degree": "B.S.",
+      "field": "Computer Science",
+      "gpa": "3.7",
+      "startDate": "2013-09",
+      "endDate": "2017-04",
+      "current": false
+    }
+  ],
+  "projects": [
+    {
+      "name": "opensky-tracker",
+      "role": "Author",
+      "url": "https://github.com/mayaokafor-example/opensky-tracker",
+      "summary": {
+        "variants": [
+          {
+            "style": "impact",
+            "text": "Open-source ADS-B flight tracker with 1.2k GitHub stars; Rust backend, WebGL frontend."
+          },
+          { "style": "short", "text": "OSS flight tracker, 1.2k stars (Rust/WebGL)." }
+        ]
+      },
+      "bullets": []
+    }
+  ],
+  "certifications": [
+    {
+      "name": "AWS Certified Solutions Architect – Associate",
+      "issuer": "Amazon Web Services",
+      "date": "2023-11"
+    }
+  ],
+  "answers": [
+    {
+      "key": "workAuthorization",
+      "question": "Are you authorized to work in the United States?",
+      "patterns": ["authoriz", "legally.*work", "right.?to.?work"],
+      "kind": "boolean",
+      "value": true,
+      "choiceSynonyms": ["Yes", "I am authorized to work in the U.S."],
+      "sensitive": false
+    },
+    {
+      "key": "sponsorship",
+      "question": "Will you now or in the future require sponsorship?",
+      "patterns": ["sponsor"],
+      "kind": "boolean",
+      "value": false,
+      "choiceSynonyms": ["No", "I will not require sponsorship"],
+      "sensitive": false
+    },
+    {
+      "key": "salaryExpectation",
+      "question": "What is your expected salary?",
+      "patterns": ["salary", "compensation", "desired.?pay"],
+      "kind": "text",
+      "value": "$145,000–$165,000 depending on total compensation",
+      "variants": [
+        { "style": "long", "text": "$145,000–$165,000 depending on total compensation" },
+        { "style": "short", "text": "$150k" }
+      ],
+      "sensitive": true
+    },
+    {
+      "key": "noticePeriod",
+      "question": "When can you start?",
+      "patterns": ["notice.?period", "available.*start", "start.?date"],
+      "kind": "text",
+      "value": "Two weeks from offer",
+      "sensitive": false
+    },
+    {
+      "key": "howDidYouHear",
+      "question": "How did you hear about this role?",
+      "patterns": ["how.?did.?you.?hear", "referr?al.?source"],
+      "kind": "text",
+      "value": "Job board",
+      "sensitive": false
+    }
+  ],
+  "versions": [
+    {
+      "name": "Impact-focused SWE",
+      "description": "Metric-forward phrasing for startups and product companies.",
+      "stylePriority": ["impact", "short"]
+    },
+    {
+      "name": "Responsibilities (gov/Workday)",
+      "description": "Duty-phrased variants for government and Workday-style forms.",
+      "stylePriority": ["responsibilities", "long"]
+    }
+  ],
+  "files": [
+    {
+      "kind": "resume",
+      "name": "Maya_Okafor_Resume_2026.pdf",
+      "mime": "application/pdf",
+      "base64": "JVBERi0xLjQKJcOkw7zDtsOfCjEgMCBvYmoKPDwvVHlwZS9DYXRhbG9nL1BhZ2VzIDIgMCBSPj4KZW5kb2JqCjIgMCBvYmoKPDwvVHlwZS9QYWdlcy9LaWRzWzMgMCBSXS9Db3VudCAxPj4KZW5kb2JqCjMgMCBvYmoKPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgNjEyIDc5Ml0+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAwNjAgMDAwMDAgbiAKMDAwMDAwMDExMSAwMDAwMCBuIAp0cmFpbGVyCjw8L1NpemUgNC9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjE3OAolJUVPRgo="
+    }
+  ]
+}

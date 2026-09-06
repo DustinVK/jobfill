@@ -6,3 +6,4 @@ playwright-report/
 .DS_Store
 *.log
 web-ext-artifacts/
+src/shared/schema/validate-import.gen.cjs

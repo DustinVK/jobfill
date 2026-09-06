@@ -32,15 +32,26 @@ declare global {
   }
 }
 
-const channel = new MemoryChannel({ tabId: 1, frameId: 0, origin: location.origin });
-const env: BackgroundEnv = {
-  storage: createMemoryStorage(),
-  blobs: new MemoryBlobStore(),
-  server: channel,
-  scripting: createMemoryScripting(),
-  runtime: createMemoryRuntime(),
-};
-env.server.serve(createRouter({ env }));
+// Re-injection guard: keep ONE background env per page. Without this, a second injection
+// would build a fresh channel/env while bootstrap() returns the existing session bound to
+// the old one — tests seeding `handle.env` would then talk past `handle.session.client`.
+if (window.__jobfillHarness) {
+  window.__jobfillHarness.session.activate();
+} else {
+  main();
+}
 
-const session = bootstrap({ transport: channel });
-window.__jobfillHarness = { session, shadow: session.overlay.shadow, env };
+function main(): void {
+  const channel = new MemoryChannel({ tabId: 1, frameId: 0, origin: location.origin });
+  const env: BackgroundEnv = {
+    storage: createMemoryStorage(),
+    blobs: new MemoryBlobStore(),
+    server: channel,
+    scripting: createMemoryScripting(),
+    runtime: createMemoryRuntime(),
+  };
+  env.server.serve(createRouter({ env }));
+
+  const session = bootstrap({ transport: channel });
+  window.__jobfillHarness = { session, shadow: session.overlay.shadow, env };
+}

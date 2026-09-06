@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build": "npm run gen:schema && node scripts/build.mjs",
     "build:harness": "node scripts/build.mjs --harness",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
@@ -21,7 +21,9 @@
     "lint:ext": "node scripts/check-ext-lint.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:local-only && npm run lint:ext",
     "dev:options": "node scripts/dev-server.mjs",
-    "demo": "node scripts/dev-server.mjs --demo"
+    "demo": "node scripts/dev-server.mjs --demo",
+    "gen:schema": "node scripts/gen-validator.mjs",
+    "pretest": "npm run gen:schema"
   },
   "dependencies": {
     "ajv": "8.20.0",

@@ -8,3 +8,4 @@ fixtures/**/*.html
 # Authored documents are hand-formatted; SPEC.md is read-only per CLAUDE.md.
 *.md
 .claude/
+src/shared/schema/validate-import.gen.cjs

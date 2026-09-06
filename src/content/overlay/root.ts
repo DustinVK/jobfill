@@ -50,8 +50,9 @@ const BASE_STYLES = `
 `;
 
 /**
- * Creates (or returns) the overlay root. `document.documentElement` is used as the mount
- * point so the overlay survives pages that replace `document.body`.
+ * Creates a new overlay root (idempotence lives in bootstrap.ts, which calls this once per
+ * page). `document.documentElement` is the mount point so the overlay survives pages that
+ * replace `document.body`.
  */
 export function createOverlayRoot(doc: Document = document): OverlayRoot {
   const host = doc.createElement('div');
@@ -86,10 +87,4 @@ export function overlayLayer(shadow: ShadowRoot): HTMLElement {
   const layer = shadow.querySelector<HTMLElement>('.jf-layer');
   if (!layer) throw new Error('jobfill: overlay layer missing');
   return layer;
-}
-
-export function appendStyles(shadow: ShadowRoot, css: string): void {
-  const style = document.createElement('style');
-  style.textContent = css;
-  shadow.append(style);
 }

@@ -62,10 +62,11 @@ export class MemoryBlobStore implements BlobStoreAdapter {
 }
 
 /**
- * A direct client↔host channel. `transport.send` invokes the served handler in-process;
- * structured clone is *not* simulated so `File`/`Blob` payloads survive by reference,
- * which mirrors Firefox's real structured-clone messaging closely enough for our uses
- * (SPEC §6.2) while keeping the harness synchronous-ish and debuggable.
+ * A direct client↔host channel. `transport.send` invokes the served handler in-process,
+ * structured-cloning both the request and the reply — exactly what Firefox's real
+ * `runtime.sendMessage` does. `File`/`Blob` survive (they are structured-cloneable, which
+ * is the Firefox advantage SPEC §6.2 relies on); functions/symbols throw here just as they
+ * would in a real extension, so tests can't pass payloads production would reject.
  */
 export class MemoryChannel implements MessageTransport, MessageServer {
   private handler: MessageHandler | undefined;
@@ -81,7 +82,8 @@ export class MemoryChannel implements MessageTransport, MessageServer {
 
   async send(message: unknown): Promise<unknown> {
     if (!this.handler) throw new Error('MemoryChannel: no handler served');
-    return this.handler(message, this.sender);
+    const reply = await this.handler(structuredClone(message), this.sender);
+    return structuredClone(reply);
   }
 }
 
