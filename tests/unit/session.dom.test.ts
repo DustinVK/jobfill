@@ -60,7 +60,7 @@ describe('deny-list immunity (SPEC §7.9)', () => {
     await session.refresh(document);
     const pw = entryBySelector(session, '#pw');
     expect(pw.classification.tier).toBe('skip');
-    const result = session.fillEntry(pw, 'hunter2', true);
+    const result = await session.fillEntry(pw, 'hunter2', true);
     expect(result.ok).toBe(false);
     expect((document.querySelector('#pw') as HTMLInputElement).value).toBe('');
   });
@@ -106,10 +106,10 @@ describe('sensitive confirm-first (SPEC §7.9)', () => {
     await session.refresh(document);
     const salary = entryBySelector(session, '#sal');
     expect(salary.classification.sensitive).toBe(true);
-    expect(session.fillEntry(salary).ok).toBe(false);
+    expect((await session.fillEntry(salary)).ok).toBe(false);
     expect((document.querySelector('#sal') as HTMLInputElement).value).toBe('');
     // Explicit confirm fills.
-    expect(session.fillEntry(salary, undefined, true).ok).toBe(true);
+    expect((await session.fillEntry(salary, undefined, true)).ok).toBe(true);
     expect((document.querySelector('#sal') as HTMLInputElement).value).toBe('$150k');
   });
 
@@ -140,11 +140,11 @@ describe('checkbox polarity (P1-7)', () => {
     await session.refresh(document);
     const cb = entryBySelector(session, '#cb');
 
-    const yes = session.fillEntry(cb, 'Yes, I am authorized to work in the US', true);
+    const yes = await session.fillEntry(cb, 'Yes, I am authorized to work in the US', true);
     expect(yes.ok).toBe(true);
     expect((document.querySelector('#cb') as HTMLInputElement).checked).toBe(true);
 
-    const ambiguous = session.fillEntry(cb, 'purple monkey dishwasher', true);
+    const ambiguous = await session.fillEntry(cb, 'purple monkey dishwasher', true);
     expect(ambiguous.ok).toBe(false);
     // The box was NOT silently toggled by the failure.
     expect((document.querySelector('#cb') as HTMLInputElement).checked).toBe(true);
@@ -160,7 +160,7 @@ describe('fillState survives rescans (P1-8)', () => {
     const session = await makeSession();
     await session.refresh(document);
     const first = entryBySelector(session, '#fn');
-    session.fillEntry(first);
+    await session.fillEntry(first);
     expect(first.fillState).toBe('filled');
 
     await session.refresh(document); // SPA settle rescan

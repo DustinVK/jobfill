@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>custom widget form</title>
+    <style>
+      body {
+        font: 15px/1.5 system-ui;
+        max-width: 40rem;
+        margin: 32px auto;
+      }
+      [role='listbox'] {
+        border: 1px solid #999;
+        border-radius: 6px;
+        margin: 4px 0;
+        padding: 4px;
+        max-width: 300px;
+      }
+      [role='option'] {
+        padding: 4px 8px;
+        cursor: pointer;
+      }
+      [role='option']:hover {
+        background: #eef;
+      }
+      label {
+        display: block;
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="/event-log.js"></script>
+    <h1>Custom widget application form</h1>
+
+    <!-- name fields so the min-signal guard clears -->
+    <label for="first_name">First name</label><input id="first_name" />
+    <label for="last_name">Last name</label><input id="last_name" />
+
+    <!-- Typeahead combobox (country) -->
+    <label for="country-input">Country</label>
+    <input
+      id="country-input"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-controls="country-list"
+      aria-expanded="false"
+    />
+    <div id="country-list" role="listbox" hidden></div>
+
+    <!-- Workday-style listbox button (phone type) -->
+    <label id="pt-label">Phone Type</label>
+    <button
+      id="pt-button"
+      aria-haspopup="listbox"
+      aria-labelledby="pt-label"
+      aria-controls="pt-list"
+    >
+      Select one…
+    </button>
+    <div id="pt-list" role="listbox" hidden></div>
+
+    <div id="chosen"></div>
+
+    <script>
+      // --- typeahead combobox: options render 150 ms after typing (async, like real ATS) ---
+      const COUNTRIES = ['Canada', 'United Kingdom', 'United States', 'Germany', 'Nigeria'];
+      const input = document.getElementById('country-input');
+      const list = document.getElementById('country-list');
+      let timer;
+      input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          const q = input.value.toLowerCase();
+          list.replaceChildren(
+            ...COUNTRIES.filter((c) => c.toLowerCase().includes(q)).map((c) => {
+              const opt = document.createElement('div');
+              opt.setAttribute('role', 'option');
+              opt.textContent = c;
+              opt.addEventListener('click', () => {
+                input.value = c;
+                list.hidden = true;
+                input.setAttribute('aria-expanded', 'false');
+                document.getElementById('chosen').textContent = 'country=' + c;
+              });
+              return opt;
+            }),
+          );
+          list.hidden = false;
+          input.setAttribute('aria-expanded', 'true');
+        }, 150);
+      });
+
+      // --- listbox button: popup renders 120 ms after click ---
+      const button = document.getElementById('pt-button');
+      const ptList = document.getElementById('pt-list');
+      button.addEventListener('click', () => {
+        if (!ptList.hidden) {
+          ptList.hidden = true;
+          return;
+        }
+        setTimeout(() => {
+          ptList.replaceChildren(
+            ...['Mobile', 'Home', 'Work'].map((t) => {
+              const opt = document.createElement('div');
+              opt.setAttribute('role', 'option');
+              opt.textContent = t;
+              opt.addEventListener('click', () => {
+                button.textContent = t;
+                ptList.hidden = true;
+                document.getElementById('chosen').textContent += ' phoneType=' + t;
+              });
+              return opt;
+            }),
+          );
+          ptList.hidden = false;
+        }, 120);
+      });
+    </script>
+  </body>
+</html>

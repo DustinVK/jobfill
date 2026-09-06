@@ -177,7 +177,7 @@ export class OverlayUI {
         block: 'center',
         behavior: 'instant' as ScrollBehavior,
       });
-      const result = this.deps.session.fillEntry(entry);
+      const result = await this.deps.session.fillEntry(entry);
       if (result.verified) okCount++;
       else if (result.ok) amber++;
       await new Promise((resolve) => setTimeout(resolve, 90));
@@ -359,7 +359,7 @@ export class OverlayUI {
     const fillLabel = entry.classification.sensitive ? 'Confirm & fill' : 'Fill (Enter)';
     const fillBtn = el(this.doc, 'button', 'jf-btn jf-btn-primary', fillLabel);
     fillBtn.setAttribute('data-jf', 'popover-fill');
-    fillBtn.addEventListener('click', () => this.commitPopover(preview.value, review));
+    fillBtn.addEventListener('click', () => void this.commitPopover(preview.value, review));
     const mapBtn = el(this.doc, 'button', 'jf-btn', 'map…');
     mapBtn.setAttribute('data-jf', 'popover-map');
     mapBtn.addEventListener('click', () => this.openMapPicker(pop, entry));
@@ -390,7 +390,7 @@ export class OverlayUI {
           this.toast('Sensitive field — click "Confirm & fill" to proceed');
           return;
         }
-        this.commitPopover(preview.value, review);
+        void this.commitPopover(preview.value, review);
       } else if (event.key === 'Escape') {
         event.preventDefault();
         if (review) this.endReview();
@@ -426,20 +426,21 @@ export class OverlayUI {
     preview.setSelectionRange(preview.value.length, preview.value.length);
   }
 
-  private commitPopover(value: string, review: boolean): void {
+  private async commitPopover(value: string, review: boolean): Promise<void> {
     const entry = this.popoverEntry;
     if (!entry) return;
-    const result = this.deps.session.fillEntry(entry, value, true);
+    const result = await this.deps.session.fillEntry(entry, value, true);
     if (!result.ok) {
       this.toast(result.reason ?? 'Could not fill this field');
       if (entry.field.kind === 'listbox-button') {
-        // Honest fallback for widgets we can't drive: put the value on the clipboard.
+        // Honest fallback when the widget refuses to be driven: value on the clipboard.
         this.copyToClipboard(value);
         this.toast("Copied — pick the option in the site's own widget");
       }
       if (review) this.advanceReview();
       return;
     }
+    if (result.ok && !result.verified && result.reason) this.toast(result.reason);
     if (review) this.advanceReview();
     else this.closePopover();
   }
@@ -557,14 +558,15 @@ export class OverlayUI {
           this.classifyLooseTarget(target);
         // The deny-list holds even for fields the scan missed (rung-2 review P0-2): a
         // password/SSN/DOB input focused by the user is still refused.
-        const fillResult = this.deps.session.fillEntry(entry, result.value, true);
-        if (fillResult.ok) {
-          this.toast(
-            fillResult.verified ? 'Filled' : 'Filled — but the site may have rewritten it',
-          );
-        } else {
-          this.toast(fillResult.reason ?? 'Could not fill this field');
-        }
+        void this.deps.session.fillEntry(entry, result.value, true).then((fillResult) => {
+          if (fillResult.ok) {
+            this.toast(
+              fillResult.verified ? 'Filled' : 'Filled — but the site may have rewritten it',
+            );
+          } else {
+            this.toast(fillResult.reason ?? 'Could not fill this field');
+          }
+        });
       } else {
         this.copyToClipboard(result.value);
         this.toast('Copied to clipboard');

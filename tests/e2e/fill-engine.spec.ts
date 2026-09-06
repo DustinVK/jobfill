@@ -330,3 +330,45 @@ test.describe('fill-bar attach button (rung 3)', () => {
     expect(files[0]?.head).toBe('%PDF-1.4');
   });
 });
+
+test.describe('custom widgets (rung 4 item 5)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/widgets.html');
+    await injectContentBundle(page);
+    await waitForFillBar(page);
+  });
+
+  test('typeahead combobox: types, awaits async options, clicks the match', async ({ page }) => {
+    // The country field is suggest-tier (choice widget) — drive it via review/popover.
+    const filled = await page.evaluate(async () => {
+      const handle = window.__jobfillHarness!;
+      const entry = handle.session.session.current.entries.find(
+        (e) => e.field.element.id === 'country-input',
+      );
+      if (!entry) return 'no-entry';
+      const result = await handle.session.session.fillEntry(entry, undefined, true);
+      return JSON.stringify(result);
+    });
+    expect(filled).toContain('"ok":true');
+    await expect(page.locator('#country-input')).toHaveValue('United States');
+    // The page's own click handler ran — the widget really was driven, not just typed into.
+    await expect(page.locator('#chosen')).toContainText('country=United States');
+  });
+
+  test('listbox button: opens the popup, clicks the option, verifies the button text', async ({
+    page,
+  }) => {
+    const filled = await page.evaluate(async () => {
+      const handle = window.__jobfillHarness!;
+      const entry = handle.session.session.current.entries.find(
+        (e) => e.field.element.id === 'pt-button',
+      );
+      if (!entry) return 'no-entry';
+      const result = await handle.session.session.fillEntry(entry, undefined, true);
+      return JSON.stringify(result);
+    });
+    expect(filled).toContain('"verified":true');
+    await expect(page.locator('#pt-button')).toHaveText('Mobile');
+    await expect(page.locator('#chosen')).toContainText('phoneType=Mobile');
+  });
+});

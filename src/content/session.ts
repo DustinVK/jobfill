@@ -20,6 +20,7 @@ import {
   undoElement,
   type FillResult,
 } from './fillers/index.js';
+import { fillCombobox, fillListboxButton } from './fillers/widgets.js';
 
 export interface PlanEntry {
   field: ScannedField;
@@ -176,9 +177,13 @@ export class FillSession {
   /**
    * Fills one entry with the composed value (or an explicit override from the popover).
    * Sensitive entries only fill when `confirmedSensitive` — the popover's explicit confirm
-   * (SPEC §7.9); fill-all never sets it.
+   * (SPEC §7.9); fill-all never sets it. Async: custom widgets await their popups.
    */
-  fillEntry(entry: PlanEntry, override?: string, confirmedSensitive = false): FillResult {
+  async fillEntry(
+    entry: PlanEntry,
+    override?: string,
+    confirmedSensitive = false,
+  ): Promise<FillResult> {
     if (entry.classification.tier === 'skip') {
       return { ok: false, verified: false, reason: 'deny-listed field' };
     }
@@ -220,20 +225,14 @@ export class FillSession {
         result = fillCheckbox(entry.field, polarity.index === 0, this.snapshots);
         break;
       }
-      case 'combobox': {
-        // Best-effort text entry into the combobox's input; read-back verification reports
-        // honestly. Full typeahead driving (options await + click) is Rung 4.
-        result = fillText(entry.field, value, this.snapshots);
-        if (result.ok)
-          result = {
-            ...result,
-            reason: result.reason ?? 'combobox: typed text only — confirm the site accepted it',
-          };
+      case 'combobox':
+        result = await fillCombobox(entry.field, value, targets, this.snapshots);
         break;
-      }
       case 'listbox-button':
+        result = await fillListboxButton(entry.field, targets);
+        break;
       case 'file':
-        return { ok: false, verified: false, reason: `cannot drive ${entry.field.kind} tonight` };
+        return { ok: false, verified: false, reason: 'file fields attach via the fill bar' };
       default:
         return { ok: false, verified: false, reason: 'unknown widget' };
     }
@@ -242,16 +241,6 @@ export class FillSession {
     this.fillStates.set(entry.field.element, entry.fillState);
     this.emit();
     return result;
-  }
-
-  /** Fill-all (SPEC §3.5): every eligible auto-tier field. Returns per-entry results. */
-  fillAll(): { entry: PlanEntry; result: FillResult }[] {
-    const results = this.autoEntries().map((entry) => ({
-      entry,
-      result: this.fillEntry(entry),
-    }));
-    this.emit();
-    return results;
   }
 
   undoAll(): number {
