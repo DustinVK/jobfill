@@ -100,6 +100,11 @@ export interface ProtocolMap {
       fillAllThreshold: number;
       suggestThreshold: number;
       activeVersionName: string;
+      /**
+       * The active version's attached resume (falls back to the sole resume-kind file when
+       * no explicit link exists) — what the fill bar's attach button offers (SPEC §3.7).
+       */
+      attachedFile?: { id: string; name: string };
     };
   };
   'snippets.search': {

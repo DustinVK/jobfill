@@ -146,6 +146,10 @@ async function handle(
     case 'fill.context': {
       const vault = await data.getVault();
       const active = vault.versions.find((v) => v.id === vault.settings.activeVersionId);
+      // Attach offer (SPEC §3.7): the version-linked file, else the sole resume on record.
+      const linked = active?.fileId ? vault.files.find((f) => f.id === active.fileId) : undefined;
+      const resumes = vault.files.filter((f) => f.kind === 'resume');
+      const attachedFile = linked ?? (resumes.length === 1 ? resumes[0] : undefined);
       return {
         answers: vault.answers.map((a) => ({
           id: a.id,
@@ -157,6 +161,7 @@ async function handle(
         fillAllThreshold: vault.settings.fillAllThreshold,
         suggestThreshold: vault.settings.suggestThreshold,
         activeVersionName: active?.name ?? 'Default',
+        ...(attachedFile ? { attachedFile: { id: attachedFile.id, name: attachedFile.name } } : {}),
       };
     }
 

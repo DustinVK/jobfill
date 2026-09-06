@@ -151,3 +151,30 @@ test('import of an invalid file renders a path-precise error report', async ({ p
   await expect(page.getByTestId('import-errors')).toBeVisible();
   await expect(page.getByTestId('import-errors')).toContainText('/profile/identity');
 });
+
+test('files manager: upload, link to version, delete (rung 3)', async ({ page }) => {
+  await freshOptions(page);
+  await page.getByRole('tab', { name: 'Files' }).click();
+  await expect(page.getByText('No files yet')).toBeVisible();
+
+  await page.getByTestId('file-upload').setInputFiles({
+    name: 'Maya_Resume.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 fake resume bytes'),
+  });
+  const row = page.getByTestId('file-row');
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText('Maya_Resume.pdf');
+  await expect(row).toContainText('Not attached to any version');
+
+  // Link to the default version, then save the versions section.
+  await row.getByTestId('link-version').selectOption({ index: 1 });
+  await expect(row).toContainText('Attached to: Everything / impact-first');
+  await page.getByTestId('save-btn').click();
+  await expect(page.getByTestId('status')).toHaveText('Saved.');
+
+  // Delete removes the row and the dangling version link.
+  page.on('dialog', (d) => void d.accept());
+  await row.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByTestId('file-row')).toHaveCount(0);
+});

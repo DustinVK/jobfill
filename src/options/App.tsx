@@ -10,6 +10,7 @@ import { WorkEditor } from './components/WorkEditor.js';
 import { AnswersEditor } from './components/AnswersEditor.js';
 import { VersionsEditor } from './components/VersionsEditor.js';
 import { ImportExport } from './components/ImportExport.js';
+import { FilesPanel } from './components/FilesPanel.js';
 
 const TABS = ['Profile', 'Work', 'Answers', 'Versions', 'Files', 'Import / Export'] as const;
 type Tab = (typeof TABS)[number];
@@ -145,20 +146,13 @@ export function App({ client }: { client: ProtocolClient }) {
         />
       )}
       {tab === 'Files' && (
-        <section class="panel">
-          <h2>Files</h2>
-          <p class="muted">
-            Resume/cover-letter file storage lands in the next milestone (M3). Files imported via
-            JSON are already stored: {vault.files.length} file(s).
-          </p>
-          <ul>
-            {vault.files.map((f) => (
-              <li key={f.id}>
-                {f.name} — {f.mime}, {Math.round(f.size / 1024)} KB
-              </li>
-            ))}
-          </ul>
-        </section>
+        <FilesPanel
+          vault={vault}
+          client={client}
+          onVersionsChange={(v) => edit('versions', v)}
+          onVaultChanged={reload}
+          confirmDiscard={confirmDiscard}
+        />
       )}
       {tab === 'Import / Export' && (
         <ImportExport client={client} onVaultChanged={reload} confirmDiscard={confirmDiscard} />

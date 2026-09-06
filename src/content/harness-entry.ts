@@ -22,12 +22,15 @@ import type { InterchangeDocument } from '../shared/types.js';
 import { createEmptyVault } from '../shared/vault.js';
 import { mergeAdd } from '../shared/interchange.js';
 import { bootstrap, type ContentSession } from './bootstrap.js';
+import * as attach from './attach.js';
 import sampleImport from '../../ai/examples/sample-import.json';
 
 export interface HarnessHandle {
   session: ContentSession;
   shadow: ShadowRoot;
   env: BackgroundEnv;
+  /** The shipped attach module, callable from tests (plain-DataTransfer branch). */
+  attach: typeof attach;
 }
 
 declare global {
@@ -54,6 +57,12 @@ function main(): void {
 
   // Seed the vault with the sample import so compose has real data behind it.
   const seeded = mergeAdd(createEmptyVault(), sampleImport as unknown as InterchangeDocument);
+  // Link the sample resume to the active version so the attach flow has a file to offer.
+  const resume = seeded.vault.files.find((f) => f.kind === 'resume');
+  const activeVersion = seeded.vault.versions.find(
+    (v) => v.id === seeded.vault.settings.activeVersionId,
+  );
+  if (resume && activeVersion) activeVersion.fileId = resume.id;
   void storage.local.set('vault', { v: 1, enc: 'none', data: seeded.vault });
   for (const payload of seeded.files) {
     void blobs.put(
@@ -72,5 +81,5 @@ function main(): void {
   env.server.serve(createRouter({ env }));
 
   const session = bootstrap({ transport: channel });
-  window.__jobfillHarness = { session, shadow: session.overlay.shadow, env };
+  window.__jobfillHarness = { session, shadow: session.overlay.shadow, env, attach };
 }

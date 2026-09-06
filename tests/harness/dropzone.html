@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>dropzone upload form</title>
+    <style>
+      body {
+        font: 15px/1.5 system-ui;
+        max-width: 40rem;
+        margin: 32px auto;
+      }
+      .drop-zone {
+        border: 2px dashed #888;
+        border-radius: 8px;
+        padding: 32px;
+        text-align: center;
+      }
+      .drop-zone.over {
+        border-color: #17795e;
+        background: #f0faf5;
+      }
+      #received {
+        margin-top: 16px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="/event-log.js"></script>
+    <h1>Upload your resume</h1>
+
+    <!-- Pattern A (Greenhouse/Lever/Ashby): styled dropzone wrapping a hidden real input. -->
+    <div class="drop-zone" id="zone-with-input">
+      <p>Attach resume/CV — drop or click</p>
+      <input type="file" id="hidden-file-input" style="opacity: 0; width: 0; height: 0" />
+    </div>
+
+    <!-- Pattern B (react-dropzone style): drop events only, NO input element. -->
+    <div class="drop-zone" id="zone-drop-only" style="margin-top: 24px">
+      <p>Cover letter — drop only (no hidden input)</p>
+    </div>
+
+    <div id="received">nothing received</div>
+
+    <script>
+      // Page-side verification: read the delivered File's name/size/bytes via FileReader,
+      // exactly what tests assert (a real File object reached page JS — SPEC §7.5).
+      window.__receivedFiles = [];
+      function receive(file, via) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const bytes = new Uint8Array(reader.result);
+          const head = Array.from(bytes.slice(0, 8))
+            .map((b) => String.fromCharCode(b))
+            .join('');
+          window.__receivedFiles.push({
+            via,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            head,
+          });
+          document.getElementById('received').textContent = JSON.stringify(window.__receivedFiles);
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      document.getElementById('hidden-file-input').addEventListener('change', (e) => {
+        for (const file of e.target.files) receive(file, 'input-change');
+      });
+
+      const dropOnly = document.getElementById('zone-drop-only');
+      dropOnly.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropOnly.classList.add('over');
+      });
+      dropOnly.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropOnly.classList.remove('over');
+        const files = e.dataTransfer ? e.dataTransfer.files : [];
+        for (const file of files) receive(file, 'drop');
+      });
+    </script>
+  </body>
+</html>
