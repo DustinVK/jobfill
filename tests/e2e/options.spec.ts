@@ -111,8 +111,11 @@ test('import shows a summary and the data lands; export round-trips', async ({ p
   await freshOptions(page);
   await page.getByRole('tab', { name: 'Import / Export' }).click();
 
-  // Import the shipped sample fixture.
+  // Import the shipped sample fixture — dry-run preview first, then confirm.
   await page.getByTestId('import-file').setInputFiles('ai/examples/sample-import.json');
+  await expect(page.getByTestId('import-preview')).toBeVisible();
+  await expect(page.getByTestId('import-preview')).toContainText('Will add 2 work');
+  await page.getByTestId('confirm-import').click();
   await expect(page.getByTestId('import-summary')).toBeVisible();
   await expect(page.getByTestId('import-summary')).toContainText('Added 2 work');
 
