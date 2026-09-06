@@ -97,6 +97,13 @@ In priority order; stop anywhere:
 
 Mid-rung: commit at every green sub-step with imperative messages. The morning `git log --oneline` should read as the night's story.
 
+**Subagent policy.** Subagents exist to keep the main context lean and the judgment fresh — use them where they read a lot and change nothing:
+
+- **Reviews** (this protocol): always a fresh subagent, never self-review — fresh context can't grade its own homework.
+- **Research**: consulting MDN/docs, investigating an unfamiliar API, digging through long e2e/build logs to diagnose a failure. Have the subagent return a conclusion, not a dump.
+- **Not for implementation.** All code changes happen in the main thread. Do not fan out parallel implementation subagents: this is a young single-package repo with almost no independent work streams, parallel writers cause conflicts and duplication, you lose working knowledge of code you didn't write, and the token burn raises the odds of hitting a usage limit mid-night. Coherence beats wall-clock speed tonight — nobody is waiting. (Exception: a fully isolated, spec-defined artifact like generating classifier fixture files may be delegated; log it as a Decision.)
+- **Cadence stays per-rung.** Do not review every commit — that trades tokens for marginal signal. Verify runs at every commit; judgment runs at every rung.
+
 ## 5. PROGRESS.md protocol
 
 Single file at repo root, updated **before every commit**. Sections, in order:
@@ -125,7 +132,9 @@ Playwright cannot load WebExtensions into Firefox. Do not attempt it, and do not
 
 ## 8. MORNING_REPORT.md (the final act)
 
-When Rung 4 is done, or no further honest progress is possible, write `MORNING_REPORT.md`:
+When Rung 4 is done, or no further honest progress is possible, first run **one final whole-night review**: a fresh subagent over `git diff <seed-commit>..HEAD` looking for cross-cutting issues per-rung reviews can miss — inconsistent patterns between rungs, adapter-seam leaks that crept in late, duplicated logic, safety-rule gaps across the whole surface. Fix its P0s if they're quick; otherwise they go at the top of "Look at these first."
+
+Then write `MORNING_REPORT.md`:
 
 1. **Executive summary** — 3 sentences: what works now, how far the ladder got, the one thing to know.
 2. **Rung status table** — per rung: green/partial/not started + evidence (test counts, e2e names, commit shas).
