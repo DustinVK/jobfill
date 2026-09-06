@@ -297,6 +297,20 @@ of the session: what is true in the repo right now, what was decided, and what i
   comment); real IndexedDB persistence is unit-tested with fake-indexeddb instead.
 - **2026-09-06 00:46 — `answers.salaryExpectation` ships sensitive-by-default** (SPEC §13 open
   question 3, leaning-yes adopted): forced sensitive on import; user can unmark in options.
+- **2026-09-06 15:00 — Phone demo lives in `demo/` (generated, gitignored), built by
+  `scripts/build-demo.mjs`** (`npm run demo:build`, folded into `npm run build`; `demo:watch`
+  rebuilds on change). Sources in `src/demo/`: the real options app + real content bundle over
+  the in-memory router with the vault in localStorage, seeded from `ai/examples/sample-import.json`
+  (fictional data, labeled as such on every page). No `browser.*`, nothing added to `dist/`, so
+  `check:local-only` and web-ext still grade the real artifact. The form pages add a page-level
+  touch toolbar (Invoke / Palette / Fill all / Undo) because phones have no keyboard shortcuts —
+  it drives the overlay's own buttons, it is not product UI. `demo/**` joined dist ignores in
+  eslint/prettier configs.
+- **2026-09-06 15:00 — Tailnet serving is `scripts/serve-demo.mjs`** (`npm run demo:tailnet`):
+  binds 127.0.0.1 and wires `tailscale serve --bg` (tailnet-only HTTPS; teardown
+  `tailscale serve reset`). If the tailnet lacks HTTPS/MagicDNS it stops and prints tailscale's
+  exact message rather than falling back silently; manual fallback is `--host $(tailscale ip -4)`.
+  Never `tailscale funnel`. Also exposes `docs/screenshots/` under `/shots/`.
 
 ## Deviations
 

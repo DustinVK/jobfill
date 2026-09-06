@@ -11,3 +11,4 @@ fixtures/**/*.html
 src/shared/schema/validate-import.gen.cjs
 Resumes/
 docs/screenshots/
+/demo/

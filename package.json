@@ -9,7 +9,10 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "npm run gen:schema && node scripts/build.mjs",
+    "build": "npm run gen:schema && node scripts/build.mjs && node scripts/build-demo.mjs",
+    "demo:build": "npm run gen:schema && node scripts/build-demo.mjs",
+    "demo:watch": "npm run gen:schema && node scripts/build-demo.mjs --watch",
+    "demo:tailnet": "npm run demo:build && node scripts/serve-demo.mjs --tailnet",
     "build:harness": "node scripts/build.mjs --harness",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
