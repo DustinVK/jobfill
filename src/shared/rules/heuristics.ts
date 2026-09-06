@@ -30,12 +30,13 @@ const rules: HeuristicRule[] = [
   {
     key: 'identity.firstName',
     positive: /first ?name|given ?name|fname|\bfirst\b|forename/,
-    negative: /last|family/,
+    negative: /last|family|first ?(year|date|month|day|time)/,
   },
   {
     key: 'identity.lastName',
     positive: /last ?name|surname|family ?name|lname|\blast\b/,
-    negative: /surname\d/,
+    // "last year"/"last updated" etc. are dates, not names (live education-form bug).
+    negative: /surname\d|last ?(year|date|month|day|time|updated|used|login|visit)/,
   },
   {
     key: 'identity.fullName',
@@ -136,7 +137,11 @@ const rules: HeuristicRule[] = [
   // Bare "From"/"To" labels only count on date-SHAPED inputs (MM/YYYY placeholders,
   // type=month/date) — Workday-style experience groups (SPEC §7.4 date-segmented).
   { key: 'work[0].startDate', positive: /^from$|^start$/, dateShape: true },
-  { key: 'work[0].endDate', positive: /^to$|^end$|^until$/, dateShape: true },
+  {
+    key: 'work[0].endDate',
+    positive: /^to$|^to actual or expected$|^end$|^until$/,
+    dateShape: true,
+  },
 
   // --- education (J) --------------------------------------------------------
   {

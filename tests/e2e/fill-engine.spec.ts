@@ -404,3 +404,97 @@ test.describe('no-auto-submit guard (whole-night review P0-1)', () => {
     expect(submitted).toBe(false);
   });
 });
+
+test.describe('overlay chrome (badge toggle, Esc audit, movable bar, skip counts)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/plain-form.html');
+    await injectContentBundle(page);
+    await waitForFillBar(page);
+  });
+
+  test('the Badges button hides every badge and shows them again', async ({ page }) => {
+    await page.waitForFunction(
+      () => (window.__jobfillHarness?.shadow.querySelectorAll('[data-jf-badge]').length ?? 0) > 0,
+    );
+    await clickOverlay(page, '[data-jf="toggle-badges"]');
+    const hidden = await page.evaluate(() => {
+      const badge = window.__jobfillHarness!.shadow.querySelector('[data-jf-badge]');
+      return badge === null || (badge.parentElement?.hidden ?? false);
+    });
+    expect(hidden).toBe(true);
+    await clickOverlay(page, '[data-jf="toggle-badges"]');
+    await page.waitForFunction(
+      () => (window.__jobfillHarness?.shadow.querySelectorAll('[data-jf-badge]').length ?? 0) > 0,
+    );
+  });
+
+  test('Escape closes the palette and popover from anywhere on the page', async ({ page }) => {
+    // Palette open → Esc (keyboard focus wherever) closes it.
+    await clickOverlay(page, '[data-jf="palette"]');
+    await page.waitForFunction(() =>
+      window.__jobfillHarness?.shadow.querySelector('[data-jf="palette-dialog"]'),
+    );
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(
+      () => !window.__jobfillHarness?.shadow.querySelector('[data-jf="palette-dialog"]'),
+    );
+
+    // Review popover open → focus the PAGE (not the popover) → Esc still ends review.
+    await clickOverlay(page, '[data-jf="review"]');
+    await page.waitForFunction(() =>
+      window.__jobfillHarness?.shadow.querySelector('[data-jf="popover"]'),
+    );
+    await page.locator('h1').click();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(
+      () => !window.__jobfillHarness?.shadow.querySelector('[data-jf="popover"]'),
+    );
+  });
+
+  test('the orientation toggle flips the bar vertical and back', async ({ page }) => {
+    await clickOverlay(page, '[data-jf="toggle-orientation"]');
+    const vertical = await page.evaluate(() =>
+      window.__jobfillHarness!.shadow.querySelector('.jf-bar')!.classList.contains('jf-vertical'),
+    );
+    expect(vertical).toBe(true);
+    await clickOverlay(page, '[data-jf="toggle-orientation"]');
+    const horizontal = await page.evaluate(
+      () =>
+        !window
+          .__jobfillHarness!.shadow.querySelector('.jf-bar')!
+          .classList.contains('jf-vertical'),
+    );
+    expect(horizontal).toBe(true);
+  });
+
+  test('skipping a field in review subtracts it from the Review count', async ({ page }) => {
+    const countOf = () =>
+      page.evaluate(() => {
+        const btn = window.__jobfillHarness!.shadow.querySelector('[data-jf="review"]');
+        const match = /Review (\d+)/.exec(btn?.textContent ?? '');
+        return match ? Number(match[1]) : 0;
+      });
+    const before = await countOf();
+    expect(before).toBeGreaterThan(0);
+
+    await clickOverlay(page, '[data-jf="review"]');
+    await page.waitForFunction(() =>
+      window.__jobfillHarness?.shadow.querySelector('[data-jf="popover"]'),
+    );
+    // Click Skip (the quiet button labelled "Skip (S)").
+    await page.evaluate(() => {
+      const pop = window.__jobfillHarness!.shadow.querySelector('[data-jf="popover"]')!;
+      const skip = [...pop.querySelectorAll('button')].find((b) =>
+        b.textContent?.startsWith('Skip'),
+      );
+      skip?.click();
+    });
+    // End the review so the bar re-renders its counts.
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(
+      () => !window.__jobfillHarness?.shadow.querySelector('[data-jf="popover"]'),
+    );
+    const after = await countOf();
+    expect(after).toBe(before - 1);
+  });
+});

@@ -64,6 +64,8 @@ export class FillSession {
   private answersInfo: AnswersContext = [];
   /** Fill outcomes keyed by ELEMENT so ✓/amber badges survive SPA-settle rescans. */
   private readonly fillStates = new WeakMap<Element, NonNullable<PlanEntry['fillState']>>();
+  /** Review skips, element-keyed: skipped fields leave the Review count/queue (badge stays). */
+  private skippedElements = new WeakSet<Element>();
   private refreshToken = 0;
   private listeners: (() => void)[] = [];
 
@@ -176,9 +178,9 @@ export class FillSession {
   }
 
   /**
-   * Suggest-tier entries — what "Review M" steps through. Sensitive entries are EXCLUDED:
-   * they fill only via their lock badge's own confirm (SPEC §3.5/§7.9), never in a bulk
-   * keyboard flow.
+   * Suggest-tier entries — what "Review M" steps through. Sensitive entries are EXCLUDED
+   * (lock-badge confirm only, SPEC §3.5/§7.9), and so are entries the user skipped —
+   * a skip leaves the count, not just the current queue.
    */
   suggestEntries(): PlanEntry[] {
     return this.state.entries.filter(
@@ -186,8 +188,15 @@ export class FillSession {
         e.classification.tier === 'suggest' &&
         !e.classification.sensitive &&
         (e.value?.value || e.value?.choiceTargets) &&
-        e.fillState === undefined,
+        e.fillState === undefined &&
+        !this.skippedElements.has(e.field.element),
     );
+  }
+
+  /** Review skip: drop the field from the count/queue until Undo resets the session. */
+  markSkipped(entry: PlanEntry): void {
+    this.skippedElements.add(entry.field.element);
+    this.emit();
   }
 
   /**
@@ -280,6 +289,7 @@ export class FillSession {
       entry.fillState = undefined;
       this.fillStates.delete(entry.field.element);
     }
+    this.skippedElements = new WeakSet(); // skips are review-flow state; Undo resets them
     this.emit();
     return restored;
   }

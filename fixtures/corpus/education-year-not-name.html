@@ -1,0 +1,19 @@
+<!-- jobfill-fixture
+{
+  "expect": {
+    "#uni": "education[0].school",
+    "#ed-from": "education[0].startDate",
+    "#ed-to": "education[0].endDate"
+  },
+  "none": []
+}
+-->
+<h2>Education</h2>
+<label for="uni">University</label><input id="uni">
+<label for="deg">Degree</label><input id="deg" name="degree">
+<div class="dates">
+  <label for="ed-from">From</label>
+  <input id="ed-from" name="first_year" placeholder="YYYY" maxlength="4">
+  <label for="ed-to">To (Actual or Expected)</label>
+  <input id="ed-to" name="last_year" placeholder="YYYY" maxlength="4">
+</div>

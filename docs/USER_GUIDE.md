@@ -99,7 +99,8 @@ bytes — in the same format the importer reads. Export before experimenting; **
 4. **Fill N fields** fills every green field, scrolling each into view as it goes.
 5. **Review M** steps through the amber fields one popover at a time:
    - the proposed value sits in an editable preview — edit freely, it fills as-is;
-   - **Enter** fills · **S** skips · **Esc** stops the review;
+   - **Enter** fills · **S** (or Skip) skips — skipped fields leave the Review count and
+     stay reachable via their badge · **Esc** stops the review;
    - **↑ / ↓** cycle alternate phrasings and formats (impact vs responsibilities wording,
      `(616) 555-0100` vs `+16165550100`, `05/2021` vs `May 2021`);
    - the search row swaps in anything else from your library;
@@ -110,9 +111,13 @@ bytes — in the same format the importer reads. Export before experimenting; **
 7. **Attach *your-resume.pdf*** appears when an upload field or dropzone is detected;
    one click puts the file linked to your active version into it.
 8. **Undo** (or **Ctrl/Cmd+Z** while the overlay has focus) restores every touched field
-   to what it held before. Clicking a filled field's badge reverts just that one.
-9. Submit the application yourself. jobfill has no submit path — it will never click
-   submit/next/continue for you.
+   to what it held before. Clicking a filled field's badge reverts just that one. Undo also
+   clears any review skips.
+9. **Bar controls**: drag the ⠿ grip to move the fill bar anywhere (it snaps back inside
+   the viewport); the ↕/↔ button flips it between horizontal and vertical; **Badges**
+   hides/shows all the field dots (useful when they cover the page's own icons).
+10. Submit the application yourself. jobfill has no submit path — it will never click
+    submit/next/continue for you.
 
 ### The palette — works anywhere
 
@@ -159,5 +164,5 @@ jobfill can't classify at all:
 | **↑ / ↓** | popover preview | cycle variants & formats |
 | **Tab** | popover | jump to the next recognized field |
 | **S** | review mode | skip this field |
-| **Esc** | anywhere in the overlay | close popover / palette / stop review |
+| **Esc** | anywhere on the page | closes jobfill's topmost surface: palette → map… list → popover / review. The fill bar itself stays (close it with ✕). |
 | **Ctrl/Cmd+Z** | overlay focused | undo all fills |

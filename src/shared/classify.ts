@@ -303,31 +303,68 @@ function rationalize(fields: FieldSignals[], results: Map<string, Classification
     pairPartners.add(b.fieldId);
   }
 
-  // --- Repeated work groups (SPEC §7.10): heuristics only ever emit work[0].*; on a page
-  // with N "Job title" fields, the Nth occurrence of each work key belongs to the Nth
-  // group → re-index by occurrence in DOM order so group 2 proposes the SECOND included
-  // experience instead of refilling the current job. (Radio-group entries sort after the
-  // main scan pass, so a radio-based "current" toggle could misindex — checkbox-based
-  // groups, the common Workday shape, order correctly.)
-  const workOccurrences = new Map<string, number>();
+  // Single-segment date inputs: a lone YYYY (or MM) box takes just that slice of the
+  // composed MM/YYYY — writing "05/2019" into a year-only box is garbage.
+  for (const field of fields) {
+    const result = results.get(field.fieldId);
+    if (!result?.key || result.datePart) continue;
+    if (!/\.(startDate|endDate)$/.test(result.key)) continue;
+    if (yearish(field) && !monthish(field)) result.datePart = 'year';
+    else if (monthish(field) && !yearish(field) && (field.maxLength ?? 9) <= 2) {
+      result.datePart = 'month';
+    }
+  }
+
+  // --- Repeated entity groups (SPEC §7.10): heuristics only ever emit index 0; on a page
+  // with N "Job title" (or "School") fields, the Nth occurrence of each key belongs to the
+  // Nth group → re-index by occurrence in DOM order so group 2 proposes the SECOND included
+  // entity instead of repeating the first. (Radio-group entries sort after the main scan
+  // pass, so a radio-based "current" toggle could misindex — checkbox-based groups, the
+  // common Workday shape, order correctly.)
+  const occurrences = new Map<string, number>();
   for (const field of fields) {
     const result = results.get(field.fieldId);
     if (!result?.key) continue;
-    const match = /^work\[0\]\.([a-zA-Z]+)$/.exec(result.key);
+    const match = /^(work|education|projects)\[0\]\.([a-zA-Z]+)$/.exec(result.key);
     if (!match) continue;
     if (pairPartners.has(field.fieldId)) {
       // Year segment inherits its month partner's index (set just below).
       continue;
     }
-    const workField = match[1]!;
-    const occurrence = workOccurrences.get(workField) ?? 0;
-    workOccurrences.set(workField, occurrence + 1);
-    if (occurrence > 0) result.key = `work[${occurrence}].${workField}`;
+    const family = match[1]!;
+    const entityField = match[2]!;
+    const counterKey = `${family}.${entityField}`;
+    const occurrence = occurrences.get(counterKey) ?? 0;
+    occurrences.set(counterKey, occurrence + 1);
+    if (occurrence > 0) result.key = `${family}[${occurrence}].${entityField}`;
     if (result.datePart === 'month') {
       const index = fields.findIndex((f) => f.fieldId === field.fieldId);
       const partner = fields[index + 1];
       const partnerResult = partner ? results.get(partner.fieldId) : undefined;
       if (partnerResult?.datePart === 'year') partnerResult.key = result.key;
+    }
+  }
+
+  // --- Section anchoring: date fields belong to the NEAREST PRECEDING section anchor
+  // (a company/title field → that work group; a school field → that EDUCATION entry).
+  // Fixes education "From / To" dates classifying as work dates, and keeps a group's
+  // dates with its own group even when date-field counts differ between groups.
+  let anchor: { family: 'work' | 'education'; index: number } | undefined;
+  for (const field of fields) {
+    const result = results.get(field.fieldId);
+    if (!result?.key) continue;
+    const anchorMatch = /^(work)\[(\d+)\]\.(company|title)$|^(education)\[(\d+)\]\.school$/.exec(
+      result.key,
+    );
+    if (anchorMatch) {
+      anchor = anchorMatch[1]
+        ? { family: 'work', index: Number(anchorMatch[2]) }
+        : { family: 'education', index: Number(anchorMatch[5]) };
+      continue;
+    }
+    const dateMatch = /^(?:work|education)\[\d+\]\.(startDate|endDate)$/.exec(result.key);
+    if (dateMatch && anchor) {
+      result.key = `${anchor.family}[${anchor.index}].${dateMatch[1]}`;
     }
   }
 

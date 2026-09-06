@@ -18,6 +18,25 @@ export const OVERLAY_STYLES = `
     max-width: min(94vw, 760px);
     flex-wrap: wrap;
   }
+  .jf-bar.jf-vertical {
+    flex-direction: column;
+    align-items: stretch;
+    left: auto;
+    right: 16px;
+    bottom: 16px;
+    transform: none;
+    max-width: 240px;
+  }
+  .jf-bar.jf-vertical .jf-btn { text-align: left; }
+  .jf-drag {
+    cursor: grab;
+    color: #9bb0c3;
+    user-select: none;
+    padding: 2px 4px;
+    touch-action: none;
+  }
+  .jf-drag:active { cursor: grabbing; }
+  .jf-btn[aria-pressed='false'] { opacity: 0.6; }
   .jf-bar .jf-version {
     font-weight: 600;
     color: #9bb0c3;

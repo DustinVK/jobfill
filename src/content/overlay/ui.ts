@@ -42,7 +42,12 @@ export class OverlayUI {
   private paletteEl: HTMLElement | undefined;
   private popoverEntry: PlanEntry | undefined;
   private reviewQueue: PlanEntry[] = [];
+  private reviewing = false;
   private repositionScheduled = false;
+  /** UI chrome state (page-session lifetime). */
+  private badgesHidden = false;
+  private barVertical = false;
+  private barPosition: { left: number; top: number } | undefined;
 
   private readonly reposition = (): void => this.scheduleReposition();
 
@@ -77,6 +82,21 @@ export class OverlayUI {
       event.preventDefault();
       this.openPalette();
     }
+    // Esc closes our topmost transient surface from ANYWHERE on the page (palette →
+    // map… sublist → popover/review). The fill bar itself stays. When nothing of ours
+    // is open, the event passes through untouched — the page keeps its own Esc behavior.
+    if (event.key === 'Escape') {
+      if (this.paletteEl) {
+        event.preventDefault();
+        this.closePalette();
+      } else if (this.popoverEl) {
+        event.preventDefault();
+        const mapList = this.popoverEl.querySelector('.jf-map-list');
+        if (mapList) mapList.remove();
+        else if (this.reviewing) this.endReview();
+        else this.closePopover();
+      }
+    }
     // Ctrl/Cmd+Z while focus is inside the overlay (SPEC §3.5).
     if (
       (event.ctrlKey || event.metaKey) &&
@@ -96,6 +116,12 @@ export class OverlayUI {
     const { session } = this.deps;
     const state = session.current;
     this.bar.replaceChildren();
+
+    const dragHandle = el(this.doc, 'span', 'jf-drag', '⠿');
+    dragHandle.title = 'Drag to move';
+    dragHandle.setAttribute('data-jf', 'drag');
+    dragHandle.addEventListener('pointerdown', (event) => this.startBarDrag(event));
+    this.bar.append(dragHandle);
 
     const version = el(this.doc, 'span', 'jf-version', state.activeVersionName || 'jobfill');
     version.title = 'Active resume version';
@@ -170,13 +196,79 @@ export class OverlayUI {
     undoBtn.addEventListener('click', () => this.deps.session.undoAll());
     this.bar.append(undoBtn);
 
+    // Badges can cover page UI (icons in field corners) — one click hides them all.
+    const badgesBtn = el(this.doc, 'button', 'jf-btn', this.badgesHidden ? 'Badges off' : 'Badges');
+    badgesBtn.setAttribute('data-jf', 'toggle-badges');
+    badgesBtn.setAttribute('aria-pressed', String(!this.badgesHidden));
+    badgesBtn.title = this.badgesHidden
+      ? 'Show the field badges again'
+      : 'Hide the field badges (they can cover page controls)';
+    badgesBtn.addEventListener('click', () => {
+      this.badgesHidden = !this.badgesHidden;
+      this.render();
+    });
+    this.bar.append(badgesBtn);
+
+    const orientBtn = el(this.doc, 'button', 'jf-btn jf-btn-quiet', this.barVertical ? '↔' : '↕');
+    orientBtn.setAttribute('data-jf', 'toggle-orientation');
+    orientBtn.title = this.barVertical ? 'Switch to a horizontal bar' : 'Switch to a vertical bar';
+    orientBtn.addEventListener('click', () => {
+      this.barVertical = !this.barVertical;
+      this.render();
+    });
+    this.bar.append(orientBtn);
+
     const closeBtn = el(this.doc, 'button', 'jf-btn jf-btn-quiet', '✕');
     closeBtn.setAttribute('data-jf', 'close');
     closeBtn.setAttribute('aria-label', 'Close jobfill');
     closeBtn.addEventListener('click', () => this.deps.onClose());
     this.bar.append(closeBtn);
 
+    this.applyBarLayout();
     this.renderBadges();
+  }
+
+  /** Re-applies orientation + dragged position after each render (render rebuilds the bar). */
+  private applyBarLayout(): void {
+    this.bar.classList.toggle('jf-vertical', this.barVertical);
+    if (this.barPosition) {
+      this.bar.style.left = `${this.barPosition.left}px`;
+      this.bar.style.top = `${this.barPosition.top}px`;
+      this.bar.style.bottom = 'auto';
+      this.bar.style.transform = 'none';
+    } else {
+      this.bar.style.left = '';
+      this.bar.style.top = '';
+      this.bar.style.bottom = '';
+      this.bar.style.transform = '';
+    }
+  }
+
+  private startBarDrag(event: PointerEvent): void {
+    event.preventDefault();
+    const rect = this.bar.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+    const win = this.doc.defaultView ?? window;
+    const onMove = (move: PointerEvent) => {
+      this.barPosition = { left: move.clientX - offsetX, top: move.clientY - offsetY };
+      this.applyBarLayout();
+    };
+    const onUp = () => {
+      win.removeEventListener('pointermove', onMove);
+      win.removeEventListener('pointerup', onUp);
+      // Clamp back into the viewport so the bar can't be lost off-screen.
+      if (this.barPosition) {
+        const { width, height } = this.bar.getBoundingClientRect();
+        this.barPosition = {
+          left: Math.min(Math.max(4, this.barPosition.left), win.innerWidth - width - 4),
+          top: Math.min(Math.max(4, this.barPosition.top), win.innerHeight - height - 4),
+        };
+        this.applyBarLayout();
+      }
+    };
+    win.addEventListener('pointermove', onMove);
+    win.addEventListener('pointerup', onUp);
   }
 
   private async runFillAll(): Promise<void> {
@@ -222,6 +314,8 @@ export class OverlayUI {
 
   private renderBadges(): void {
     this.badgeLayer.replaceChildren();
+    this.badgeLayer.hidden = this.badgesHidden;
+    if (this.badgesHidden) return;
     for (const entry of this.deps.session.current.entries) {
       const { classification } = entry;
       const kind = this.badgeKindFor(entry);
@@ -396,7 +490,14 @@ export class OverlayUI {
       'jf-btn jf-btn-quiet',
       review ? 'Skip (S)' : 'Close (Esc)',
     );
-    skipBtn.addEventListener('click', () => (review ? this.advanceReview() : this.closePopover()));
+    skipBtn.addEventListener('click', () => {
+      if (review) {
+        this.deps.session.markSkipped(entry); // a skip leaves the Review count too
+        this.advanceReview();
+      } else {
+        this.closePopover();
+      }
+    });
     actions.append(fillBtn, mapBtn, skipBtn);
     pop.append(actions);
 
@@ -435,6 +536,7 @@ export class OverlayUI {
         event.target !== search
       ) {
         event.preventDefault();
+        this.deps.session.markSkipped(entry); // S = the same real skip as the button
         this.advanceReview();
       } else if (event.key === 'Tab' && !review) {
         // Move to the next recognized field's popover, keeping flow keyboard-only.
@@ -514,6 +616,7 @@ export class OverlayUI {
 
   startReview(): void {
     this.reviewQueue = [...this.deps.session.suggestEntries()];
+    this.reviewing = true;
     this.advanceReview();
   }
 
@@ -529,6 +632,7 @@ export class OverlayUI {
 
   private endReview(): void {
     this.reviewQueue = [];
+    this.reviewing = false;
     this.closePopover();
   }
 
@@ -551,7 +655,7 @@ export class OverlayUI {
         : undefined;
 
     const palette = el(this.doc, 'div', 'jf-palette');
-    palette.setAttribute('data-jf', 'palette');
+    palette.setAttribute('data-jf', 'palette-dialog'); // the BAR button owns data-jf="palette"
     palette.setAttribute('role', 'dialog');
     palette.setAttribute('aria-label', 'jobfill search');
 

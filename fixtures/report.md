@@ -3,7 +3,7 @@
 Snapshot of ACTUAL classifier output (tests/unit/corpus.dom.test.ts); regenerate with
 `npx vitest run corpus -u` and review the diff.
 
-Fixtures: 59 | positive expectations: 93 | deny expectations: 12 | must-not-classify: 7
+Fixtures: 61 | positive expectations: 96 | deny expectations: 12 | must-not-classify: 9
 
 | Fixture / field | Expected | Got | Tier | Signal | Score |
 |---|---|---|---|---|---|
@@ -30,6 +30,9 @@ Fixtures: 59 | positive expectations: 93 | deny expectations: 12 | must-not-clas
 | education-block.html #fos | education[0].field | education[0].field | auto | label | 0.90 |
 | education-block.html #gpa | education[0].gpa | education[0].gpa | auto | label | 0.90 |
 | education-block.html #sch | education[0].school | education[0].school | auto | label | 0.90 |
+| education-year-not-name.html #ed-from | education[0].startDate | education[0].startDate | auto | label | 0.90 |
+| education-year-not-name.html #ed-to | education[0].endDate | education[0].endDate | auto | label | 0.90 |
+| education-year-not-name.html #uni | education[0].school | education[0].school | auto | label | 0.90 |
 | eeo-block.html #d | eeo.disabilityStatus | eeo.disabilityStatus | suggest | label | 0.90 LOCK |
 | eeo-block.html #g | eeo.gender | eeo.gender | suggest | label | 0.90 LOCK |
 | eeo-block.html #r | eeo.race | eeo.race | suggest | label | 0.90 LOCK |
