@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(gh:*)",
+      "Bash(npm publish:*)",
+      "Bash(npx web-ext sign:*)",
+      "Bash(web-ext sign:*)",
+      "Bash(sudo:*)"
+    ],
+    "allow": [
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)", "Bash(cat:*)", "Bash(grep:*)", "Bash(find:*)", "Bash(wc:*)",
+      "Read", "Edit", "Write", "Glob", "Grep",
+      "WebFetch(domain:developer.mozilla.org)",
+      "WebFetch(domain:extensionworkshop.com)"
+    ]
+  }
+}
