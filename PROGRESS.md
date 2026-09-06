@@ -1,6 +1,6 @@
 # Progress
 
-Status: rung 2 review running; rung 3 core done (attach + files UI + e2e), fill-bar attach wiring deferred until review lands | Last green checkpoint: cd07233 01:25
+Status: rungs 2+3 complete (reviews run, all P0/P1 fixed) | Last green checkpoint: (this commit) 01:45
 
 This file is the re-anchor point after context loss. It is written for a reader with no memory
 of the session: what is true in the repo right now, what was decided, and what is not done.
@@ -66,16 +66,17 @@ of the session: what is true in the repo right now, what was decided, and what i
 ### Rung 3 — File attach
 
 - [x] Files manager (upload/list/delete/link to version) + options e2e
-- [~] fill-bar attach button — background file handoff works (`fill.context.attachedFile` +
-      `file.get` → real File over structured clone); the fill-bar BUTTON itself is deferred
-      until the rung-2 review of ui.ts lands (avoids racing the reviewer)
+- [x] fill-bar attach button: appears when an upload field + stored resume exist; e2e clicks
+      it and asserts the page-side FileReader readout (name + %PDF bytes)
 - [x] `attachFileToInput` with environment detection (wrappedJSObject vs plain, unit-tested
       branch pick) + hidden-input discovery with cross-zone-theft guard + dropzone drop
       fallback; e2e proves BOTH paths deliver a real File to page JS (name/size/bytes via
       page-side FileReader)
 - [x] stored file survives export/import round-trip (base64) — covered in the DoD-1
       round-trip test (file.get returns the PDF bytes after wipe+reimport)
-- [ ] **DoD-3** (pending fill-bar wiring + rung review)
+- [x] **DoD-3:** verify + e2e green including both attach paths (hidden-input + drop) AND the
+      real fill-bar button flow · file round-trip in the DoD-1 test · wrappedJSObject limitation
+      recorded under Honest limitations
 
 ### Rung 4 items landed early (no conflicts with pending review)
 
@@ -113,6 +114,38 @@ of the session: what is true in the repo right now, what was decided, and what i
   Preact MIT notices retained via `legalComments: 'inline'`.
 - P2s parked (see Parked): count-pinning innerHTML by line-source; `no-restricted-properties`
   for globalThis.browser; running dist/content.js itself in an e2e.
+
+## Rung 2 review findings (fresh subagent; all P0/P1 fixed)
+
+- **P0-1 fill-all could write sensitive answers-bank values** (sensitivity only checked the
+  `eeo.` prefix) → classifyFields now inherits the answers bank's own `sensitive` flags for
+  `answers.*` keys; corpus pins `salary-expectation.html` as suggest+locked.
+- **P0-2 palette could fill ANY focused input** (fabricated manual-tier entry, deny-list
+  bypassed for scan-invisible fields) → unmatched targets now run the real gatherSignals →
+  classifyFields pipeline; skip-tier refuses. e2e: focused password + palette pick → value stays empty.
+- **P0-3 fill-all filled below the fold invisibly** (SPEC §7.9 last bullet) → fill-all is now a
+  paced sequence: scrollIntoView({block:center}) + 90 ms beat per field.
+- **P0-4 map…/site-memory could promote deny-listed fields to auto and wash away sensitivity**
+  → recordMapping refuses tier skip (returns false), sensitivity ORs, site-memory re-apply skips
+  skip-tier; unit tests pin all three. Manual-tier fields now get a hollow badge so map… is
+  actually reachable for unclassified fields (§7.7).
+- P1 fixes: review stepping and suggest counts exclude sensitive entries (lock-badge confirm
+  only; popover ignores Enter for sensitive — button click required) · rationalization no longer
+  rewrites explicit "First name" fields to fullName (only genuinely ambiguous name shapes; fixture
+  retargeted) · checkbox polarity via matchChoice with loud failure on ambiguity · fillState
+  survives rescans (element-keyed WeakMap) + refresh generation guard (stale refreshes dropped) ·
+  radio groups keyed per-form identity · palette toasts report refusals honestly · quick-save uses
+  an inline question row (no `prompt()` from a content script) · session/ui safety unit suite
+  added (7 tests) · corpus report snapshot now records ACTUAL classifier output per field
+  (key/tier/signal/score) — a genuine classifier gate.
+- P2 fixes: variant cycling first-keypress bug · destroy() listener leaks · aria-hidden +
+  computed-style visibility + whitespace-tolerant style regex · disabled file inputs excluded ·
+  observer ignores overlay host add/remove · fingerprint falls back to label-hash (never a
+  never-matching counter) · dead code removed (MemoryMapping, chip styles, void param) · React
+  pinned to 18.3.1 to match the plan's "React 18" claim · honorific/suffix/street-address fixtures.
+- P2 parked: shadow-host walk is O(page) per settle (TreeWalker+cache if ever hot) · snapshots
+  intentionally survive generations (deviation noted below) · Ctrl+Z added; palette ranking tiers
+  (classification match → version prefs → recency) still text-score only.
 
 ## Rung 1 review findings (fresh subagent; all P0/P1 fixed at 9afebdb)
 
@@ -245,6 +278,14 @@ _(nothing)_
   is only exercised down its open-root fallback path.
 
 ## Deviations (cont.)
+
+- **Undo snapshots survive scan generations.** SPEC §7.8 says snapshots die with the generation;
+  ours are element-keyed WeakMaps that persist so Undo still works after the SPA-settle rescan
+  that follows every fill (elements replaced by re-renders drop out naturally via the WeakMap).
+  Strictly more useful and no less safe; comment updated in fillers/index.ts.
+- **SPEC §3 UX gaps tonight** (logged per rung-2 review): popover opens from badges, not raw
+  field focus · fill-bar version display is not an inline switcher · palette ranking is text
+  relevance only. All are M4/M5-adjacent; parked.
 
 - **Rung order overlap.** Rung 2 implementation (classifier, fixtures, fillers) started while the
   rung-1 review subagent was still running, instead of strictly after it. All rung-1 P0/P1

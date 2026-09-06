@@ -53,12 +53,16 @@ function hasLayout(doc: Document): boolean {
 }
 
 function isVisible(el: Element, layout: boolean): boolean {
-  if (!(el instanceof Element)) return true;
   const html = el as HTMLElement;
   if (html.hidden) return false;
+  if (el.getAttribute('aria-hidden') === 'true' || el.closest('[aria-hidden="true"]')) return false;
   const style = el.getAttribute('style') ?? '';
-  if (/display:\s*none|visibility:\s*hidden/.test(style)) return false;
-  if (layout && html.offsetParent === null && el.getClientRects().length === 0) return false;
+  if (/display\s*:\s*none|visibility\s*:\s*hidden/.test(style)) return false;
+  if (layout) {
+    if (html.offsetParent === null && el.getClientRects().length === 0) return false;
+    const computed = el.ownerDocument.defaultView?.getComputedStyle(el);
+    if (computed && (computed.display === 'none' || computed.visibility === 'hidden')) return false;
+  }
   return true;
 }
 
@@ -68,14 +72,6 @@ function isDisabled(el: Element): boolean {
     el.getAttribute('aria-disabled') === 'true' ||
     (el as HTMLInputElement).readOnly === true
   );
-}
-
-/**
- * Hidden-file-input exception (SPEC §7.1): `input[type=file]` with zero size/opacity behind a
- * styled dropzone is THE common pattern — keep those even though they fail visibility.
- */
-function keepHiddenFileInput(el: Element): boolean {
-  return el instanceof HTMLInputElement && el.type === 'file';
 }
 
 /** Combobox cues per SPEC Appendix B.4. */
@@ -112,32 +108,34 @@ function collectCandidates(root: ParentNode, out: Element[]): void {
   for (const el of root.querySelectorAll(selector)) {
     out.push(el);
   }
-  // Walk shadow roots of every element (cheap enough on real pages; bail via TreeWalker
-  // would be premature here — querySelectorAll('*') only runs when a shadow host exists).
+  // Shadow-host discovery walks every element on every scan — O(page size) per settle.
+  // Acceptable tonight; a cached-hosts TreeWalker is the optimization if profiling ever
+  // shows this hot (parked in PROGRESS).
   for (const el of root.querySelectorAll('*')) {
     const shadow = shadowRootOf(el);
     if (shadow) collectCandidates(shadow, out);
   }
 }
 
-function groupKey(input: HTMLInputElement): string {
-  if (input.name) {
-    const form = input.form ? 'f' : 'd';
-    return `${form}:${input.name}`;
-  }
-  const fieldset = input.closest('fieldset');
-  return fieldset ? `fs:${fieldsetId(fieldset)}` : `solo:${nextFieldId++}`;
-}
-
-const fieldsetIds = new WeakMap<Element, number>();
-let nextFieldsetId = 0;
-function fieldsetId(el: Element): number {
-  let id = fieldsetIds.get(el);
+const containerIds = new WeakMap<Element, number>();
+let nextContainerId = 0;
+function containerId(el: Element): number {
+  let id = containerIds.get(el);
   if (id === undefined) {
-    id = nextFieldsetId++;
-    fieldsetIds.set(el, id);
+    id = nextContainerId++;
+    containerIds.set(el, id);
   }
   return id;
+}
+
+function groupKey(input: HTMLInputElement): string {
+  if (input.name) {
+    // Same name in two DIFFERENT forms = two independent groups (rung-2 review P1-9).
+    const scope = input.form ? `f${containerId(input.form)}` : 'd';
+    return `${scope}:${input.name}`;
+  }
+  const fieldset = input.closest('fieldset');
+  return fieldset ? `fs:${containerId(fieldset)}` : `solo:${nextFieldId++}`;
 }
 
 /**
@@ -161,8 +159,9 @@ export function scanFields(root: ParentNode = document): ScannedField[] {
     if (el instanceof HTMLInputElement) {
       const type = (el.getAttribute('type') ?? '').toLowerCase();
       if (type === 'file') {
-        // Keep even when hidden (dropzone pattern) but not when disabled.
-        if (!isDisabled(el) || keepHiddenFileInput(el)) {
+        // The hidden-file-input exception (§7.1) skips only the VISIBILITY check;
+        // disabled file inputs stay out.
+        if (!isDisabled(el)) {
           fields.push({ fieldId: `field-${nextFieldId++}`, kind: 'file', element: el });
         }
         continue;
@@ -278,10 +277,15 @@ export function observeAndRescan(
   };
 
   const observer = new MutationObserver((mutations) => {
-    // Ignore mutations inside our own overlay host.
+    // Ignore mutations caused by our own overlay (host attach/detach and anything inside it).
+    const isOurs = (node: Node): boolean =>
+      node instanceof Element &&
+      (node.closest('[data-jobfill]') !== null || node.matches('[data-jobfill]'));
     const relevant = mutations.some((m) => {
-      const node = m.target;
-      return !(node instanceof Element && node.closest('[data-jobfill]'));
+      if (isOurs(m.target)) return false;
+      const changed = [...m.addedNodes, ...m.removedNodes];
+      if (changed.length > 0 && changed.every(isOurs)) return false;
+      return true;
     });
     if (relevant) schedule();
   });

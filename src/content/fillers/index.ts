@@ -23,7 +23,11 @@ export interface PriorState {
   checked?: boolean;
 }
 
-/** Snapshots die with the scan generation — the coordinator replaces the whole store. */
+/**
+ * Element-keyed snapshots that SURVIVE scan generations (deviation from SPEC §7.8, logged in
+ * PROGRESS): undo keeps working after the SPA-settle rescan that follows every fill; elements
+ * replaced by re-renders fall out of the WeakMap naturally.
+ */
 export class SnapshotStore {
   private readonly map = new WeakMap<Element, PriorState>();
   private readonly touched = new Set<Element>();

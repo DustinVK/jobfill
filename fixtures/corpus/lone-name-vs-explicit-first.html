@@ -1,0 +1,13 @@
+<!-- jobfill-fixture
+{
+  "expect": {
+    "#n": "identity.fullName",
+    "#fn": "identity.firstName"
+  }
+}
+-->
+<label for="n">Name</label><input id="n" type="text">
+<p>A lone ambiguous name field maps to the FULL name (SPEC §7.3); an explicit
+"First name" field below keeps its meaning even with no last-name sibling
+(rung-2 review P1-6 — never write "Maya Okafor" into a first-name box).</p>
+<label for="fn">First name (of your referrer)</label><input id="fn" type="text">

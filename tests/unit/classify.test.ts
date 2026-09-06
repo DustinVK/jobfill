@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalizeSignal, classifyFields, type FieldSignals } from '../../src/shared/classify.js';
+import {
+  canonicalizeSignal,
+  classifyFields,
+  type FieldSignals,
+} from '../../src/shared/classify.js';
 import { mapAutocomplete } from '../../src/shared/rules/autocomplete-map.js';
 
 function field(overrides: Partial<FieldSignals> & { fieldId: string }): FieldSignals {
@@ -56,7 +60,13 @@ describe('classifyFields — tier assignment', () => {
       ],
       {
         answers: [
-          { id: 'a1', key: 'sponsorship', question: 'Sponsorship', patterns: ['sponsor'], sensitive: false },
+          {
+            id: 'a1',
+            key: 'sponsorship',
+            question: 'Sponsorship',
+            patterns: ['sponsor'],
+            sensitive: false,
+          },
         ],
       },
     );
@@ -70,7 +80,13 @@ describe('classifyFields — tier assignment', () => {
       {
         answers: [
           { id: 'bad', question: 'Broken', patterns: ['('], sensitive: false },
-          { id: 'good', key: 'sponsorship', question: 'S', patterns: ['sponsor'], sensitive: false },
+          {
+            id: 'good',
+            key: 'sponsorship',
+            question: 'S',
+            patterns: ['sponsor'],
+            sensitive: false,
+          },
         ],
       },
     );

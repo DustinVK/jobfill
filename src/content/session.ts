@@ -8,6 +8,7 @@ import { classifyFields, type FieldSignals } from '../shared/classify.js';
 import type { ComposedValue } from '../shared/compose.js';
 import { gatherSignals } from './label.js';
 import { scanFields, type ScannedField } from './scan.js';
+import { matchChoice } from '../shared/format.js';
 import {
   SnapshotStore,
   fillCheckbox,
@@ -35,28 +36,12 @@ export interface SessionState {
   generation: number;
   fillAllEligible: boolean;
   activeVersionName: string;
+  /** The active version's resume file, when one exists (SPEC §3.7 attach offer). */
+  attachedFile?: { id: string; name: string };
 }
 
-/**
- * In-memory site-memory stub (Rung 2 scope): `map…` corrections apply for the lifetime of
- * the page only. Real per-origin persistence is SPEC M4, out of scope tonight.
- */
-export interface MemoryMapping {
-  fingerprint: string;
-  key: string;
-}
-
-function fingerprintOf(field: ScannedField): string {
-  const el = field.element;
-  const auto = el.getAttribute('data-automation-id');
-  if (auto) return `auto:${auto}`;
-  const name = el.getAttribute('name');
-  if (name) return `name:${name}`;
-  const id = el.getAttribute('id');
-  // Reject UUID-ish / numeric-suffix ids (SPEC §7.7 — unstable).
-  if (id && !/\d{3,}|[0-9a-f]{8}-/.test(id)) return `id:${id}`;
-  return `idx:${field.fieldId}`;
-}
+// The in-memory site-memory stub (Rung 2 scope) lives on the session: `map…` corrections
+// apply for the lifetime of the page only. Real per-origin persistence is SPEC M4.
 
 export class FillSession {
   readonly snapshots = new SnapshotStore();
@@ -67,6 +52,9 @@ export class FillSession {
     activeVersionName: '',
   };
   private readonly siteMemoryStub = new Map<string, string>();
+  /** Fill outcomes keyed by ELEMENT so ✓/amber badges survive SPA-settle rescans. */
+  private readonly fillStates = new WeakMap<Element, NonNullable<PlanEntry['fillState']>>();
+  private refreshToken = 0;
   private listeners: (() => void)[] = [];
 
   constructor(private readonly client: ProtocolClient) {}
@@ -85,6 +73,9 @@ export class FillSession {
 
   /** Full re-scan + classify + compose. Bumps the generation; snapshots survive per element. */
   async refresh(root: ParentNode = document): Promise<SessionState> {
+    // Overlapping refreshes: only the newest may commit (stale scans would resurrect
+    // out-of-date proposals — SPEC §7.1 scan generations).
+    const token = ++this.refreshToken;
     const context = await this.client.send({ t: 'fill.context' });
     const fields = scanFields(root);
     const signals = fields.map(gatherSignals);
@@ -98,19 +89,25 @@ export class FillSession {
       field,
       signals: signals[i]!,
       classification: result.fields[i]!,
+      // Rehydrate prior fill outcomes for elements that survived the re-render.
+      fillState: this.fillStates.get(field.element),
     }));
 
     // Apply in-memory site-memory corrections (they outrank heuristics, SPEC §7.7).
+    // NEVER a deny-listed field: skip-tier survives any correction (SPEC §7.9).
     for (const entry of entries) {
-      const mapped = this.siteMemoryStub.get(fingerprintOf(entry.field));
+      if (entry.classification.tier === 'skip') continue;
+      const fingerprint = this.fingerprintOf(entry.field, entry.signals);
+      const mapped = fingerprint ? this.siteMemoryStub.get(fingerprint) : undefined;
       if (mapped) {
+        const sensitive = entry.classification.sensitive || mapped.startsWith('eeo.');
         entry.classification = {
           ...entry.classification,
           key: mapped,
           score: 1,
-          tier: mapped.startsWith('eeo.') ? 'suggest' : 'auto',
+          tier: sensitive ? 'suggest' : 'auto',
           signal: 'site-memory',
-          sensitive: mapped.startsWith('eeo.') || entry.classification.sensitive,
+          sensitive,
         };
       }
     }
@@ -137,11 +134,14 @@ export class FillSession {
         }),
     );
 
+    if (token !== this.refreshToken) return this.state; // a newer refresh superseded this one
+
     this.state = {
       entries,
       generation: this.state.generation + 1,
       fillAllEligible: result.fillAllEligible,
       activeVersionName: context.activeVersionName,
+      attachedFile: context.attachedFile,
     };
     this.emit();
     return this.state;
@@ -158,10 +158,18 @@ export class FillSession {
     );
   }
 
-  /** Suggest-tier entries — what "Review M" steps through. */
+  /**
+   * Suggest-tier entries — what "Review M" steps through. Sensitive entries are EXCLUDED:
+   * they fill only via their lock badge's own confirm (SPEC §3.5/§7.9), never in a bulk
+   * keyboard flow.
+   */
   suggestEntries(): PlanEntry[] {
     return this.state.entries.filter(
-      (e) => e.classification.tier === 'suggest' && (e.value?.value || e.value?.choiceTargets),
+      (e) =>
+        e.classification.tier === 'suggest' &&
+        !e.classification.sensitive &&
+        (e.value?.value || e.value?.choiceTargets) &&
+        e.fillState === undefined,
     );
   }
 
@@ -196,8 +204,20 @@ export class FillSession {
         result = fillRadioGroup(entry.field, targets, this.snapshots);
         break;
       case 'checkbox': {
-        const shouldCheck = /^(yes|true|checked|on|1)$/i.test(value);
-        result = fillCheckbox(entry.field, shouldCheck, this.snapshots);
+        // Polarity by choice matching, not whole-string equality — "Yes, I am authorized…"
+        // must CHECK the box, and an unmatchable value must fail loudly (SPEC §7.4).
+        // Threshold relaxed: a bare "yes"/"no" inside a verbose stored answer is still a
+        // clear polarity; genuinely unrelated values score ~0 and fail below.
+        const polarity = matchChoice(['yes', 'no'], targets, 0.4);
+        if (!polarity) {
+          result = {
+            ok: false,
+            verified: false,
+            reason: 'cannot tell yes from no for this checkbox',
+          };
+          break;
+        }
+        result = fillCheckbox(entry.field, polarity.index === 0, this.snapshots);
         break;
       }
       case 'combobox': {
@@ -219,6 +239,7 @@ export class FillSession {
     }
 
     entry.fillState = result.ok ? (result.verified ? 'filled' : 'unverified') : 'failed';
+    this.fillStates.set(entry.field.element, entry.fillState);
     this.emit();
     return result;
   }
@@ -235,7 +256,10 @@ export class FillSession {
 
   undoAll(): number {
     const restored = undoAll(this.snapshots);
-    for (const entry of this.state.entries) entry.fillState = undefined;
+    for (const entry of this.state.entries) {
+      entry.fillState = undefined;
+      this.fillStates.delete(entry.field.element);
+    }
     this.emit();
     return restored;
   }
@@ -244,21 +268,29 @@ export class FillSession {
     const restored = undoElement(entry.field.element, this.snapshots);
     if (restored) {
       entry.fillState = undefined;
+      this.fillStates.delete(entry.field.element);
       this.emit();
     }
     return restored;
   }
 
-  /** `map…` correction: record to the in-memory stub and reclassify now (SPEC §3.4). */
-  recordMapping(entry: PlanEntry, key: string): void {
-    this.siteMemoryStub.set(fingerprintOf(entry.field), key);
+  /**
+   * `map…` correction: record to the in-memory stub and reclassify now (SPEC §3.4).
+   * Deny-listed fields are immune — no correction can promote tier `skip` (SPEC §7.9),
+   * and existing sensitivity is never washed away.
+   */
+  recordMapping(entry: PlanEntry, key: string): boolean {
+    if (entry.classification.tier === 'skip') return false;
+    const fingerprint = this.fingerprintOf(entry.field, entry.signals);
+    if (fingerprint) this.siteMemoryStub.set(fingerprint, key);
+    const sensitive = entry.classification.sensitive || key.startsWith('eeo.');
     entry.classification = {
       ...entry.classification,
       key,
       score: 1,
-      tier: key.startsWith('eeo.') ? 'suggest' : 'auto',
+      tier: sensitive ? 'suggest' : 'auto',
       signal: 'site-memory',
-      sensitive: key.startsWith('eeo.'),
+      sensitive,
     };
     // Refetch the proposal for the corrected key.
     void this.client
@@ -279,5 +311,24 @@ export class FillSession {
         this.emit();
       });
     this.emit();
+    return true;
+  }
+
+  /**
+   * Selector fingerprint (SPEC §7.7 order): stable attribute → label-text hash → none.
+   * Returns undefined when nothing stable exists; the correction then applies to this
+   * generation's entry only rather than silently never matching again.
+   */
+  private fingerprintOf(field: ScannedField, signals: FieldSignals): string | undefined {
+    const el = field.element;
+    const auto = el.getAttribute('data-automation-id');
+    if (auto) return `auto:${auto}`;
+    const name = el.getAttribute('name');
+    if (name) return `name:${name}`;
+    const id = el.getAttribute('id');
+    // Reject UUID-ish / numeric-suffix ids (SPEC §7.7 — unstable).
+    if (id && !/\d{3,}|[0-9a-f]{8}-/.test(id)) return `id:${id}`;
+    if (signals.label) return `label:${signals.widget}:${signals.label.toLowerCase().trim()}`;
+    return undefined;
   }
 }

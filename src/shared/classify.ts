@@ -207,16 +207,34 @@ function matchQuestion(
 // Rationalization pass (SPEC §7.3)
 // ---------------------------------------------------------------------------
 
+/** Ambiguous "name" shapes that really mean the full name when no last-name sibling exists. */
+const AMBIGUOUS_NAME_RE = /(^|\s)name($|\s)/;
+const EXPLICIT_FIRST_RE = /first|given|fname|forename/;
+
 function rationalize(fields: FieldSignals[], results: Map<string, Classification>): void {
   const byKey = (key: CanonicalKey) =>
     [...results.values()].filter((r) => r.key === key && r.tier !== 'skip');
 
-  // A lone first-name with no last-name sibling on the page → it's a full-name field.
+  // A lone AMBIGUOUS name field with no last-name sibling → full name (SPEC §7.3).
+  // A field explicitly labelled "First name" is NOT rewritten — writing "Maya Okafor" into
+  // a first-name box is worse than writing "Maya" into a full-name box (rung-2 review P1-6).
   const firstNames = byKey('identity.firstName');
   const lastNames = byKey('identity.lastName');
   if (firstNames.length > 0 && lastNames.length === 0) {
+    const signalsById = new Map(fields.map((f) => [f.fieldId, f]));
     for (const result of firstNames) {
-      result.key = 'identity.fullName';
+      const signals = signalsById.get(result.fieldId);
+      if (!signals) continue;
+      const haystacks = [signals.label, signals.ariaLabel, signals.nameId, signals.placeholder]
+        .filter((raw): raw is string => typeof raw === 'string' && raw.length > 0)
+        .map(canonicalizeSignal);
+      const explicitlyFirst = haystacks.some((h) => EXPLICIT_FIRST_RE.test(h));
+      const ambiguousName = haystacks.some(
+        (h) => AMBIGUOUS_NAME_RE.test(h) && !EXPLICIT_FIRST_RE.test(h),
+      );
+      if (!explicitlyFirst && ambiguousName) {
+        result.key = 'identity.fullName';
+      }
     }
   }
 
@@ -237,10 +255,8 @@ function rationalize(fields: FieldSignals[], results: Map<string, Classification
     }
   }
 
-  // A text input that scan.ts marked as living inside a combobox wrapper was already
-  // assigned widget 'combobox' upstream; nothing to fix here. (Widget reassignment is a
-  // scan-time concern — the classifier only sees the final widget kind.)
-  void fields;
+  // A text input inside a combobox wrapper was already reassigned widget 'combobox' by
+  // scan.ts — widget reassignment is a scan-time concern, not a classification one.
 }
 
 // ---------------------------------------------------------------------------
@@ -322,9 +338,19 @@ export function classifyFields(fields: FieldSignals[], opts: ClassifyOptions = {
   rationalize(fields, results);
 
   // Assign tiers post-rationalization; sensitive keys never reach auto (SPEC §7.9).
+  // Sensitivity comes from BOTH the key prefix (eeo.*) and the answers bank's own flags —
+  // a heuristic hit on answers.salaryExpectation must inherit that entry's sensitive bit.
+  const sensitiveAnswerKeys = new Set(
+    answers
+      .filter((a) => a.sensitive)
+      .flatMap((a) => (a.key ? [`answers.${a.key}`] : [`answers.custom:${a.id}`])),
+  );
   for (const result of results.values()) {
     if (result.tier === 'skip') continue;
-    const sensitive = result.sensitive || result.key?.startsWith('eeo.') === true;
+    const sensitive =
+      result.sensitive ||
+      result.key?.startsWith('eeo.') === true ||
+      (result.key !== undefined && sensitiveAnswerKeys.has(result.key));
     if (sensitive) result.sensitive = true;
     if (result.key === undefined || result.score < suggestThreshold) {
       result.tier = 'manual';

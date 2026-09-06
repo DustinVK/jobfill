@@ -196,15 +196,18 @@ test.describe('shadow DOM form', () => {
     );
     await clickOverlay(page, '[data-jf="fill-all"]');
 
-    const values = await page.evaluate(() => {
-      const root = document.getElementById('host')?.shadowRoot;
-      return {
-        first: root?.querySelector<HTMLInputElement>('#s-first')?.value,
-        email: root?.querySelector<HTMLInputElement>('#s-email')?.value,
-      };
-    });
-    expect(values.first).toBe('Maya');
-    expect(values.email).toBe('maya.okafor@example.com');
+    // Fill-all paces itself (scroll + beat per field) — poll until both land.
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const root = document.getElementById('host')?.shadowRoot;
+          return {
+            first: root?.querySelector<HTMLInputElement>('#s-first')?.value,
+            email: root?.querySelector<HTMLInputElement>('#s-email')?.value,
+          };
+        }),
+      )
+      .toEqual({ first: 'Maya', email: 'maya.okafor@example.com' });
 
     // Shadow-side listeners observed the events.
     const log = await page.evaluate(() => window.__eventLog ?? []);
@@ -265,5 +268,65 @@ test.describe('palette', () => {
       shadow.querySelector<HTMLButtonElement>('[data-jf="palette-results"] .jf-option')?.click();
     });
     await expect(page.locator('#summary')).toHaveValue(/routing engine/i);
+  });
+});
+
+test.describe('palette safety (rung-2 review P0-2)', () => {
+  test('the palette refuses to fill a focused password field', async ({ page }) => {
+    await page.goto('/plain-form.html');
+    await injectContentBundle(page);
+    await waitForFillBar(page);
+
+    await page.locator('#password').click();
+    await clickOverlay(page, '[data-jf="palette"]');
+    await page.waitForFunction(() =>
+      window.__jobfillHarness?.shadow.querySelector('[data-jf="palette-search"]'),
+    );
+    await page.evaluate(() => {
+      const shadow = window.__jobfillHarness!.shadow;
+      const input = shadow.querySelector<HTMLInputElement>('[data-jf="palette-search"]');
+      input!.focus();
+      input!.value = 'email';
+      input!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.waitForFunction(
+      () =>
+        (window.__jobfillHarness?.shadow.querySelectorAll('[data-jf="palette-results"] .jf-option')
+          .length ?? 0) > 0,
+    );
+    await page.evaluate(() => {
+      const shadow = window.__jobfillHarness!.shadow;
+      shadow.querySelector<HTMLButtonElement>('[data-jf="palette-results"] .jf-option')?.click();
+    });
+    // The deny-list holds even though the field was focused and never scanned as fillable.
+    await expect(page.locator('#password')).toHaveValue('');
+  });
+});
+
+test.describe('fill-bar attach button (rung 3)', () => {
+  test('detected upload field + stored resume → attach button delivers the file', async ({
+    page,
+  }) => {
+    await page.goto('/dropzone.html');
+    await injectContentBundle(page);
+    await page.waitForFunction(() =>
+      window.__jobfillHarness?.shadow.querySelector('[data-jf="attach"]'),
+    );
+    const label = await page.evaluate(
+      () => window.__jobfillHarness?.shadow.querySelector('[data-jf="attach"]')?.textContent ?? '',
+    );
+    expect(label).toContain('Maya_Okafor_Resume_2026.pdf');
+
+    await clickOverlay(page, '[data-jf="attach"]');
+    await page.waitForFunction(
+      () => ((window as { __receivedFiles?: unknown[] }).__receivedFiles?.length ?? 0) > 0,
+    );
+    const files = await page.evaluate(
+      () =>
+        (window as unknown as { __receivedFiles: { name: string; head: string }[] })
+          .__receivedFiles,
+    );
+    expect(files[0]?.name).toBe('Maya_Okafor_Resume_2026.pdf');
+    expect(files[0]?.head).toBe('%PDF-1.4');
   });
 });

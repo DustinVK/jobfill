@@ -54,6 +54,7 @@ export const OVERLAY_STYLES = `
     padding: 0;
   }
   .jf-badge.jf-suggest { background: #e8b04b; }
+  .jf-badge.jf-manual { background: transparent; border-color: #9bb0c3; }
   .jf-badge.jf-sensitive { background: #b86ee0; }
   .jf-badge.jf-filled { background: #7dd3a0; box-shadow: 0 0 0 3px rgba(125, 211, 160, 0.35); }
   .jf-badge.jf-unverified { background: #e8804b; }

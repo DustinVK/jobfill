@@ -7,6 +7,10 @@
  */
 import type { ProtocolClient, SearchResult } from '../../shared/messages.js';
 import { SIMPLE_CANONICAL_KEYS } from '../../shared/types.js';
+import { classifyFields } from '../../shared/classify.js';
+import { gatherSignals } from '../label.js';
+import type { ScannedField } from '../scan.js';
+import { attachFile } from '../attach.js';
 import type { FillSession, PlanEntry } from '../session.js';
 import { OVERLAY_STYLES } from './styles.js';
 
@@ -40,6 +44,8 @@ export class OverlayUI {
   private reviewQueue: PlanEntry[] = [];
   private repositionScheduled = false;
 
+  private readonly reposition = (): void => this.scheduleReposition();
+
   constructor(private readonly deps: OverlayUIDeps) {
     this.doc = deps.layer.ownerDocument;
     const style = el(this.doc, 'style');
@@ -53,9 +59,8 @@ export class OverlayUI {
     deps.session.onChange(() => this.render());
 
     // Badges track their fields through scroll/resize.
-    const reposition = () => this.scheduleReposition();
-    this.doc.defaultView?.addEventListener('scroll', reposition, true);
-    this.doc.defaultView?.addEventListener('resize', reposition);
+    this.doc.defaultView?.addEventListener('scroll', this.reposition, true);
+    this.doc.defaultView?.addEventListener('resize', this.reposition);
 
     // Palette shortcut works while the overlay is alive (SPEC §3.6).
     this.doc.addEventListener('keydown', this.onGlobalKeydown, true);
@@ -63,12 +68,23 @@ export class OverlayUI {
 
   destroy(): void {
     this.doc.removeEventListener('keydown', this.onGlobalKeydown, true);
+    this.doc.defaultView?.removeEventListener('scroll', this.reposition, true);
+    this.doc.defaultView?.removeEventListener('resize', this.reposition);
   }
 
   private readonly onGlobalKeydown = (event: KeyboardEvent): void => {
     if (event.altKey && event.shiftKey && event.code === 'Space') {
       event.preventDefault();
       this.openPalette();
+    }
+    // Ctrl/Cmd+Z while focus is inside the overlay (SPEC §3.5).
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      (event.key === 'z' || event.key === 'Z') &&
+      event.composedPath().includes(this.deps.layer)
+    ) {
+      event.preventDefault();
+      this.deps.session.undoAll();
     }
   };
 
@@ -107,7 +123,7 @@ export class OverlayUI {
         `Fill ${autoCount} field${autoCount === 1 ? '' : 's'}`,
       );
       fillBtn.setAttribute('data-jf', 'fill-all');
-      fillBtn.addEventListener('click', () => this.runFillAll());
+      fillBtn.addEventListener('click', () => void this.runFillAll());
       this.bar.append(fillBtn);
     }
 
@@ -116,6 +132,18 @@ export class OverlayUI {
       reviewBtn.setAttribute('data-jf', 'review');
       reviewBtn.addEventListener('click', () => this.startReview());
       this.bar.append(reviewBtn);
+    }
+
+    const uploadEntry = state.entries.find((e) => e.field.kind === 'file');
+    if (uploadEntry && state.attachedFile) {
+      const attachBtn = el(this.doc, 'button', 'jf-btn', `Attach ${state.attachedFile.name}`);
+      attachBtn.setAttribute('data-jf', 'attach');
+      attachBtn.title = 'Attach the resume linked to the active version';
+      attachBtn.addEventListener(
+        'click',
+        () => void this.runAttach(uploadEntry, state.attachedFile!.id),
+      );
+      this.bar.append(attachBtn);
     }
 
     const paletteBtn = el(this.doc, 'button', 'jf-btn', 'Search ⌥⇧Space');
@@ -138,10 +166,22 @@ export class OverlayUI {
     this.renderBadges();
   }
 
-  private runFillAll(): void {
-    const results = this.deps.session.fillAll();
-    const okCount = results.filter((r) => r.result.verified).length;
-    const amber = results.filter((r) => r.result.ok && !r.result.verified).length;
+  private async runFillAll(): Promise<void> {
+    // SPEC §7.9: everything the extension writes is visible — each field scrolls into view
+    // and fills with a beat between, never invisibly below the fold.
+    const entries = this.deps.session.autoEntries();
+    let okCount = 0;
+    let amber = 0;
+    for (const entry of entries) {
+      entry.field.element.scrollIntoView({
+        block: 'center',
+        behavior: 'instant' as ScrollBehavior,
+      });
+      const result = this.deps.session.fillEntry(entry);
+      if (result.verified) okCount++;
+      else if (result.ok) amber++;
+      await new Promise((resolve) => setTimeout(resolve, 90));
+    }
     this.toast(
       `Filled ${okCount} field${okCount === 1 ? '' : 's'}` +
         (amber > 0 ? ` · ${amber} unverified (check amber badges)` : ''),
@@ -156,7 +196,18 @@ export class OverlayUI {
     this.badgeLayer.replaceChildren();
     for (const entry of this.deps.session.current.entries) {
       const { classification } = entry;
-      if (classification.tier === 'skip' || classification.tier === 'manual') continue;
+      if (classification.tier === 'skip') continue; // deny-listed: untouchable, unbadged
+      if (classification.tier === 'manual') {
+        // Hollow badge: opens the popover so `map…` can teach unclassified fields (§7.7).
+        if (entry.field.kind === 'file') continue;
+        const manualBadge = el(this.doc, 'button', 'jf-badge jf-manual');
+        manualBadge.setAttribute('data-jf-badge', 'manual');
+        manualBadge.title = 'Unrecognized field — search or map it';
+        manualBadge.addEventListener('click', () => this.openPopover(entry));
+        this.badgeLayer.append(manualBadge);
+        this.positionBadge(manualBadge, entry);
+        continue;
+      }
       if (!entry.value?.value && !entry.value?.choiceTargets) continue;
       const badge = el(this.doc, 'button', 'jf-badge');
       badge.setAttribute('data-jf-badge', classification.key ?? '');
@@ -197,11 +248,10 @@ export class OverlayUI {
     requestAnimationFrame(() => {
       this.repositionScheduled = false;
       const badges = [...this.badgeLayer.children] as HTMLElement[];
-      const entries = this.deps.session.current.entries.filter(
-        (e) =>
-          e.classification.tier !== 'skip' &&
-          e.classification.tier !== 'manual' &&
-          (e.value?.value || e.value?.choiceTargets),
+      const entries = this.deps.session.current.entries.filter((e) =>
+        e.classification.tier === 'manual'
+          ? e.field.kind !== 'file'
+          : e.classification.tier !== 'skip' && (e.value?.value || e.value?.choiceTargets),
       );
       badges.forEach((badge, i) => {
         const entry = entries[i];
@@ -256,7 +306,7 @@ export class OverlayUI {
 
     // Variant/format cycling (SPEC §3.4: ↑/↓ or chips).
     const alternates = entry.value?.alternates ?? [];
-    let cycleIndex = -1;
+    let cycleIndex = 0; // 0 = original; 1..n = alternates
     const cycle = (direction: 1 | -1) => {
       if (alternates.length === 0) return;
       cycleIndex = (cycleIndex + direction + alternates.length + 1) % (alternates.length + 1);
@@ -335,6 +385,11 @@ export class OverlayUI {
           return; // let Enter type newlines in multiline previews; buttons/Cmd-Enter fill
         }
         event.preventDefault();
+        if (entry.classification.sensitive) {
+          // §7.9: sensitive fills need the DELIBERATE button click, not flow-through Enter.
+          this.toast('Sensitive field — click "Confirm & fill" to proceed');
+          return;
+        }
         this.commitPopover(preview.value, review);
       } else if (event.key === 'Escape') {
         event.preventDefault();
@@ -497,26 +552,19 @@ export class OverlayUI {
     const commit = (result: SearchResult | undefined, copy: boolean) => {
       if (!result) return;
       if (!copy && target) {
-        const entry = this.deps.session.current.entries.find((e) => e.field.element === target);
-        if (entry) {
-          this.deps.session.fillEntry(entry, result.value, true);
-        } else {
-          // Unclassified target: honest direct set through the text filler path.
-          this.deps.session.fillEntry(
-            {
-              field: {
-                fieldId: 'palette-target',
-                kind: target instanceof HTMLTextAreaElement ? 'textarea' : 'text',
-                element: target,
-              },
-              signals: { fieldId: 'palette-target', widget: 'text' },
-              classification: { fieldId: 'palette-target', score: 0, tier: 'manual' },
-            },
-            result.value,
-            true,
+        const entry =
+          this.deps.session.current.entries.find((e) => e.field.element === target) ??
+          this.classifyLooseTarget(target);
+        // The deny-list holds even for fields the scan missed (rung-2 review P0-2): a
+        // password/SSN/DOB input focused by the user is still refused.
+        const fillResult = this.deps.session.fillEntry(entry, result.value, true);
+        if (fillResult.ok) {
+          this.toast(
+            fillResult.verified ? 'Filled' : 'Filled — but the site may have rewritten it',
           );
+        } else {
+          this.toast(fillResult.reason ?? 'Could not fill this field');
         }
-        this.toast('Filled');
       } else {
         this.copyToClipboard(result.value);
         this.toast('Copied to clipboard');
@@ -555,7 +603,30 @@ export class OverlayUI {
             `Save "${search.value.slice(0, 60)}" as an answer…`,
           ),
         );
-        save.addEventListener('click', () => void this.quickSave(search.value));
+        save.addEventListener('click', () => {
+          // Inline question row (no page dialogs from a content script).
+          save.remove();
+          const row = el(this.doc, 'div', 'jf-row');
+          const question = el(this.doc, 'input', 'jf-search');
+          question.placeholder = 'Save as the answer to which question?';
+          question.setAttribute('data-jf', 'palette-save-question');
+          const confirmBtn = el(this.doc, 'button', 'jf-btn jf-btn-primary', 'Save');
+          confirmBtn.setAttribute('data-jf', 'palette-save-confirm');
+          confirmBtn.addEventListener(
+            'click',
+            () => void this.quickSave(search.value, question.value),
+          );
+          question.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              void this.quickSave(search.value, question.value);
+            }
+            event.stopPropagation();
+          });
+          row.append(question, confirmBtn);
+          results.append(row);
+          question.focus();
+        });
         results.append(save);
       }
     };
@@ -600,17 +671,20 @@ export class OverlayUI {
     runSearch();
   }
 
-  private async quickSave(text: string): Promise<void> {
+  private async quickSave(text: string, question: string): Promise<void> {
     // "Save '…' as" (SPEC §3.6): quick-save into the answers bank so the library grows
     // organically. Uses the narrow `answers.quickSave` message — content scripts have no
     // vault-level access (rung-1 review P1-8).
-    const question = this.doc.defaultView?.prompt(
-      'Save as answer to which question?',
-      'Custom answer',
-    );
-    if (!question) return;
+    if (!question.trim()) {
+      this.toast('Give the answer a question first');
+      return;
+    }
     try {
-      await this.deps.client.send({ t: 'answers.quickSave', question, value: text });
+      await this.deps.client.send({
+        t: 'answers.quickSave',
+        question: question.trim(),
+        value: text,
+      });
       this.toast('Saved to your answers bank');
     } catch (err) {
       this.toast(err instanceof Error ? err.message : 'Could not save');
@@ -621,6 +695,43 @@ export class OverlayUI {
   closePalette(): void {
     this.paletteEl?.remove();
     this.paletteEl = undefined;
+  }
+
+  /**
+   * Builds a plan entry for a focused element outside the last scan (late-mounted,
+   * scan-invisible) by running the real label+classify pipeline on it — so the deny-list
+   * and sensitivity rules apply exactly as they would have at scan time.
+   */
+  private classifyLooseTarget(target: HTMLElement): PlanEntry {
+    const kind =
+      target instanceof HTMLTextAreaElement
+        ? ('textarea' as const)
+        : target.isContentEditable
+          ? ('contenteditable' as const)
+          : ('text' as const);
+    const field: ScannedField = { fieldId: 'palette-target', kind, element: target };
+    const signals = gatherSignals(field);
+    const result = classifyFields([signals]);
+    return { field, signals, classification: result.fields[0]! };
+  }
+
+  /** Rung 3 (SPEC §3.7): pull the stored file from the background and attach it. */
+  private async runAttach(entry: PlanEntry, fileId: string): Promise<void> {
+    try {
+      const { file } = await this.deps.client.send({ t: 'file.get', fileId });
+      const result = attachFile(entry.field.element, file, this.doc.defaultView ?? window);
+      if (result.ok) {
+        this.toast(
+          result.path === 'input'
+            ? `Attached ${file.name}`
+            : `Dropped ${file.name} — check the site accepted it`,
+        );
+      } else {
+        this.toast(`Could not attach: ${result.reason ?? 'unknown'} — use the field's own picker`);
+      }
+    } catch (err) {
+      this.toast(err instanceof Error ? err.message : 'Could not load the stored file');
+    }
   }
 
   // -------------------------------------------------------------------------
