@@ -3,7 +3,7 @@
 Snapshot of ACTUAL classifier output (tests/unit/corpus.dom.test.ts); regenerate with
 `npx vitest run corpus -u` and review the diff.
 
-Fixtures: 54 | positive expectations: 77 | deny expectations: 12 | must-not-classify: 7
+Fixtures: 57 | positive expectations: 81 | deny expectations: 12 | must-not-classify: 7
 
 | Fixture / field | Expected | Got | Tier | Signal | Score |
 |---|---|---|---|---|---|
@@ -21,6 +21,10 @@ Fixtures: 54 | positive expectations: 77 | deny expectations: 12 | must-not-clas
 | country-code-not-country.html #cc | contact.phoneCountryCode | contact.phoneCountryCode | auto | label | 0.90 |
 | cover-letter-textarea.html #cl | coverLetter.text | coverLetter.text | auto | label | 0.90 |
 | cover-letter-upload.html #c | documents.coverLetter | documents.coverLetter | auto | label | 0.90 |
+| current-location.html #cur-loc | address.full | address.full | suggest | placeholder | 0.60 |
+| div-question-radios.html #sp-yes | answers.sponsorship | answers.sponsorship | suggest | question | 0.85 |
+| div-question-radios.html #wa-yes | answers.workAuthorization | answers.workAuthorization | suggest | label | 0.90 |
+| div-question-salary.html #sal-div | answers.salaryExpectation | answers.salaryExpectation | suggest | label | 0.90 LOCK |
 | education-block.html #deg | education[0].degree | education[0].degree | auto | label | 0.90 |
 | education-block.html #fos | education[0].field | education[0].field | auto | label | 0.90 |
 | education-block.html #gpa | education[0].gpa | education[0].gpa | auto | label | 0.90 |

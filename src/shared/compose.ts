@@ -318,8 +318,14 @@ export function compose(
         return address.country
           ? { value: address.country, alternates: [], choiceTargets: [address.country] }
           : EMPTY;
-      case 'full':
-        return composed(formatAddressFull(address));
+      case 'full': {
+        // "Current location"-style fields often want just "City, ST" — offer the ladder.
+        const cityState = [address.city, address.state].filter(Boolean).join(', ');
+        const alternates = [cityState, address.city ?? '']
+          .filter((alt) => alt && alt !== formatAddressFull(address))
+          .filter((alt, i, all) => all.indexOf(alt) === i);
+        return composed(formatAddressFull(address), alternates);
+      }
     }
     return undefined;
   }

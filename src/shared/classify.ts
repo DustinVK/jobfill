@@ -128,7 +128,9 @@ export function canonicalizeSignal(raw: string): string {
 const QUESTION_LENGTH = 60;
 
 function isQuestionShaped(text: string): boolean {
-  return text.length > QUESTION_LENGTH || text.trimEnd().endsWith('?');
+  // Required-field markers ("…sponsorship? *") must not hide the question mark.
+  const cleaned = text.replace(/[\s*:]+$/u, '');
+  return cleaned.length > QUESTION_LENGTH || cleaned.endsWith('?');
 }
 
 // ---------------------------------------------------------------------------

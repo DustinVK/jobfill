@@ -205,23 +205,38 @@ export class OverlayUI {
   // Badges (SPEC §3.3/§3.5)
   // -------------------------------------------------------------------------
 
+  /**
+   * What kind of badge an entry earns: none (deny-listed / file), hollow (unclassified OR
+   * classified-but-nothing-stored — still searchable/mappable), or a full proposal badge.
+   */
+  private badgeKindFor(entry: PlanEntry): 'none' | 'hollow' | 'proposal' {
+    const { classification } = entry;
+    if (classification.tier === 'skip' || entry.field.kind === 'file') return 'none';
+    if (classification.tier === 'manual') return 'hollow';
+    // Classified (e.g. a salary question) but the vault holds no value yet: hollow badge so
+    // the user can fill it from search or store an answer — vanishing entirely looked like
+    // a plain miss (first real-form test).
+    if (!entry.value?.value && !entry.value?.choiceTargets) return 'hollow';
+    return 'proposal';
+  }
+
   private renderBadges(): void {
     this.badgeLayer.replaceChildren();
     for (const entry of this.deps.session.current.entries) {
       const { classification } = entry;
-      if (classification.tier === 'skip') continue; // deny-listed: untouchable, unbadged
-      if (classification.tier === 'manual') {
-        // Hollow badge: opens the popover so `map…` can teach unclassified fields (§7.7).
-        if (entry.field.kind === 'file') continue;
+      const kind = this.badgeKindFor(entry);
+      if (kind === 'none') continue;
+      if (kind === 'hollow') {
         const manualBadge = el(this.doc, 'button', 'jf-badge jf-manual');
-        manualBadge.setAttribute('data-jf-badge', 'manual');
-        manualBadge.title = 'Unrecognized field — search or map it';
+        manualBadge.setAttribute('data-jf-badge', classification.key ?? 'manual');
+        manualBadge.title = classification.key
+          ? `${classification.key} — nothing stored yet; click to search or save an answer`
+          : 'Unrecognized field — search or map it';
         manualBadge.addEventListener('click', () => this.openPopover(entry));
         this.badgeLayer.append(manualBadge);
         this.positionBadge(manualBadge, entry);
         continue;
       }
-      if (!entry.value?.value && !entry.value?.choiceTargets) continue;
       const badge = el(this.doc, 'button', 'jf-badge');
       badge.setAttribute('data-jf-badge', classification.key ?? '');
       badge.title = `${classification.key ?? 'field'} (${Math.round(classification.score * 100)}%)`;
@@ -261,10 +276,8 @@ export class OverlayUI {
     requestAnimationFrame(() => {
       this.repositionScheduled = false;
       const badges = [...this.badgeLayer.children] as HTMLElement[];
-      const entries = this.deps.session.current.entries.filter((e) =>
-        e.classification.tier === 'manual'
-          ? e.field.kind !== 'file'
-          : e.classification.tier !== 'skip' && (e.value?.value || e.value?.choiceTargets),
+      const entries = this.deps.session.current.entries.filter(
+        (e) => this.badgeKindFor(e) !== 'none',
       );
       badges.forEach((badge, i) => {
         const entry = entries[i];

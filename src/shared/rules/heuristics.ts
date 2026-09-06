@@ -73,6 +73,13 @@ const rules: HeuristicRule[] = [
     positive: /country|nation(?!ality)/,
     negative: /country ?code/,
   },
+  {
+    // "Current location" fields (Lever/Ashby-style) want the applicant's whereabouts;
+    // the popover offers city/state alternates for tighter formats.
+    key: 'address.full',
+    positive: /current ?location|^location$|your ?location|where ?are ?you ?(located|based)/,
+    negative: /work ?location|job ?location|office|relocat|preference/,
+  },
 
   // --- links (J) ------------------------------------------------------------
   { key: 'links.linkedin', positive: /linked ?in/ },

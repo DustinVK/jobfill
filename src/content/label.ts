@@ -183,6 +183,52 @@ function widgetKindOf(field: ScannedField): WidgetKind {
   }
 }
 
+/**
+ * The question text of a label-less radio/checkbox group (Ashby/Rippling-style markup:
+ * a sibling <div> holds the question, each radio's own <label> just says "Yes"/"No").
+ * Found by walking from the container that encloses ALL group members: first its leading
+ * children (text before the first control), then preceding siblings, up to 3 ancestor hops.
+ */
+function groupQuestionOf(field: ScannedField): string {
+  const members = field.groupElements ?? [];
+  const first = members[0] ?? (field.element as HTMLInputElement);
+  let container: Element | null = first.parentElement;
+  while (container && !members.every((m) => container!.contains(m))) {
+    container = container.parentElement;
+  }
+  for (let hops = 0; container && hops < 3; hops++, container = container.parentElement) {
+    // Leading children of the container, before the branch holding the first control.
+    for (const child of container.children) {
+      if (child.contains(first)) break;
+      const text = candidateQuestionText(child);
+      if (text) return text;
+    }
+    // Then preceding siblings of the container itself.
+    let sibling = container.previousElementSibling;
+    for (let steps = 0; sibling && steps < 3; steps++, sibling = sibling.previousElementSibling) {
+      const text = candidateQuestionText(sibling);
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+function candidateQuestionText(el: Element): string {
+  if (el.querySelector('input, select, textarea, button')) return '';
+  const text = textOf(el);
+  return text.length >= 8 && text.length <= 300 ? text : '';
+}
+
+/** Placeholders that carry no field meaning ("Type your response…"). */
+const GENERIC_PLACEHOLDER_RE = /^(type|enter|write|add)\b|your (response|answer)|^\.*$/i;
+
+/** Short, label-shaped text: something a designer would put in a div instead of a <label>. */
+function looksLikeFieldLabel(text: string): boolean {
+  if (text.length < 3 || text.length > 60) return false;
+  if (/[.!]$/.test(text.trim())) return false; // sentences are copy, not labels
+  return text.trim().split(/\s+/).length <= 8;
+}
+
 /** Required-ness: attribute, aria, or a `*` in the label (SPEC §7.2). */
 function isRequired(el: Element, label: string): boolean {
   if ((el as HTMLInputElement).required) return true;
@@ -193,12 +239,32 @@ function isRequired(el: Element, label: string): boolean {
 export function gatherSignals(field: ScannedField): FieldSignals {
   const el = field.element;
   const isGroup = field.kind === 'radio-group';
-  // Groups take the fieldset legend as their label (SPEC §7.2 step 4).
-  const label = isGroup ? legendOf(el) || labelFor(el) : labelFor(el) || legendOf(el);
+  // Groups take the fieldset legend as their label (SPEC §7.2 step 4); without one, the
+  // group's QUESTION text beats the first radio's own "Yes" label (div-labeled ATS forms).
+  let label = isGroup
+    ? legendOf(el) || groupQuestionOf(field) || labelFor(el)
+    : labelFor(el) || legendOf(el);
   const ariaLabel = ariaLabelOf(el);
-  const placeholder = el.getAttribute('placeholder') ?? undefined;
+  let placeholder = el.getAttribute('placeholder') ?? undefined;
   const nameId = nameIdOf(el) || undefined;
   const nearby = nearbyTextOf(el) || undefined;
+
+  // Div-labeled fields (Ashby/Rippling style): when nothing labels the control properly,
+  // the preceding text block IS what the user reads. Question-shaped text is promoted to
+  // the label slot (question matching needs it there); short label-shaped text is promoted
+  // only to the placeholder slot (weight 0.6) so such fields can reach SUGGEST — never
+  // auto — keeping confirm-first semantics for weakly-labeled markup.
+  if (!label && !ariaLabel && nearby) {
+    const cleanedNearby = nearby.replace(/[\s*:]+$/u, '');
+    if (cleanedNearby.endsWith('?') || cleanedNearby.length > 60) {
+      label = nearby;
+    } else if (
+      looksLikeFieldLabel(nearby) &&
+      (!placeholder || GENERIC_PLACEHOLDER_RE.test(placeholder))
+    ) {
+      placeholder = nearby;
+    }
+  }
   const autocomplete = el.getAttribute('autocomplete') ?? undefined;
   const maxLengthAttr = el.getAttribute('maxlength');
   const maxLength = maxLengthAttr ? Number(maxLengthAttr) : undefined;
