@@ -1,6 +1,6 @@
 # Progress
 
-Status: rung 2 — complete, awaiting review | Last green checkpoint: (this commit) 01:20
+Status: rung 2 review running; rung 3 core done (attach + files UI + e2e), fill-bar attach wiring deferred until review lands | Last green checkpoint: cd07233 01:25
 
 This file is the re-anchor point after context loss. It is written for a reader with no memory
 of the session: what is true in the repo right now, what was decided, and what is not done.
@@ -65,10 +65,25 @@ of the session: what is true in the repo right now, what was decided, and what i
 
 ### Rung 3 — File attach
 
-- [ ] Files manager (upload/list/delete/link to version)
-- [ ] fill-bar attach button + background file handoff
-- [ ] `attachFileToInput` with environment detection + dropzone fallback
-- [ ] **DoD-3**
+- [x] Files manager (upload/list/delete/link to version) + options e2e
+- [~] fill-bar attach button — background file handoff works (`fill.context.attachedFile` +
+      `file.get` → real File over structured clone); the fill-bar BUTTON itself is deferred
+      until the rung-2 review of ui.ts lands (avoids racing the reviewer)
+- [x] `attachFileToInput` with environment detection (wrappedJSObject vs plain, unit-tested
+      branch pick) + hidden-input discovery with cross-zone-theft guard + dropzone drop
+      fallback; e2e proves BOTH paths deliver a real File to page JS (name/size/bytes via
+      page-side FileReader)
+- [x] stored file survives export/import round-trip (base64) — covered in the DoD-1
+      round-trip test (file.get returns the PDF bytes after wipe+reimport)
+- [ ] **DoD-3** (pending fill-bar wiring + rung review)
+
+### Rung 4 items landed early (no conflicts with pending review)
+
+- [x] README.md (quickstart, 60-second demo script, architecture map)
+- [x] `npm run demo` (harness build + dev server)
+- [x] Import dry-run preview screen (merge-add on a clone; confirm before write)
+- [x] CI workflow mirroring verify + e2e
+- [x] ai/SKILL.md + ai/PROMPT.md + ai/examples/sample-resume.md (SPEC §9.3 deliverables)
 
 ### Rung 4 — Polish (only if 0–3 green)
 
@@ -217,6 +232,17 @@ of the session: what is true in the repo right now, what was decided, and what i
 ## Blocked
 
 _(nothing)_
+
+## Honest limitations (for the morning report)
+
+- The `wrappedJSObject.DataTransfer` branch of attach.ts cannot execute outside a real
+  Firefox extension: ships code-reviewed but runtime-unverified. Top of manual QA.
+- The real `browser.*` adapters (src/shared/adapters/browser.ts) and background entrypoint
+  are exercised only by unit tests over fake-indexeddb + the memory seam, never by a loaded
+  extension tonight. `web-ext run` smoke is morning manual QA.
+- The e2e harness runs the content bundle in the PAGE world (Playwright cannot load
+  WebExtensions in Firefox): the closed-shadow-root traversal (`openOrClosedShadowRoot`)
+  is only exercised down its open-root fallback path.
 
 ## Deviations (cont.)
 
