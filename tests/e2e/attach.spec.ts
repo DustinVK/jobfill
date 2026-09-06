@@ -82,3 +82,53 @@ test('the environment detection picks the plain branch outside a real extension'
   );
   expect(environment).toBe('plain');
 });
+
+test.describe('attach safety (rung-3 review P0-1)', () => {
+  test('the attach button targets the resume input, never the deny-listed passport uploader', async ({
+    page,
+  }) => {
+    await page.goto('/attach-safety.html');
+    await injectContentBundle(page);
+    await page.waitForFunction(() =>
+      window.__jobfillHarness?.shadow.querySelector('[data-jf="attach"]'),
+    );
+    await page.evaluate(() => {
+      window
+        .__jobfillHarness!.shadow.querySelector<HTMLButtonElement>('[data-jf="attach"]')!
+        .click();
+    });
+    await page.waitForFunction(
+      () => (document.getElementById('resume-input') as HTMLInputElement).files!.length > 0,
+    );
+    // The deny-listed passport input NEVER received a file.
+    const passportFiles = await page.evaluate(
+      () => (document.getElementById('passport-input') as HTMLInputElement).files!.length,
+    );
+    expect(passportFiles).toBe(0);
+    const resumeName = await page.evaluate(
+      () => (document.getElementById('resume-input') as HTMLInputElement).files![0]!.name,
+    );
+    expect(resumeName).toBe('Maya_Okafor_Resume_2026.pdf');
+  });
+});
+
+test.describe('product drop path (rung-3 review P1-3)', () => {
+  test('an input-less dropzone page still gets an attach button; the drop delivers', async ({
+    page,
+  }) => {
+    await page.goto('/dropzone-only.html');
+    await injectContentBundle(page);
+    await page.waitForFunction(() =>
+      window.__jobfillHarness?.shadow.querySelector('[data-jf="attach"]'),
+    );
+    await page.evaluate(() => {
+      window
+        .__jobfillHarness!.shadow.querySelector<HTMLButtonElement>('[data-jf="attach"]')!
+        .click();
+    });
+    const files = await received(page);
+    expect(files[0]?.via).toBe('drop');
+    expect(files[0]?.name).toBe('Maya_Okafor_Resume_2026.pdf');
+    expect(files[0]?.head).toBe('%PDF-1.4');
+  });
+});

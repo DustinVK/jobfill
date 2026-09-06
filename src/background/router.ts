@@ -17,7 +17,7 @@ import type { ComposeOpts } from '../shared/compose.js';
 import { compose } from '../shared/compose.js';
 import { DATE_FORMATS, PHONE_FORMATS, RENDERERS } from '../shared/format.js';
 import { buildSearchIndex, searchIndex } from '../shared/search.js';
-import type { InterchangeDocument, StoredFileKind } from '../shared/types.js';
+import type { InterchangeDocument, StoredFile, StoredFileKind, Vault } from '../shared/types.js';
 import { validateImport, formatValidationErrors } from '../shared/validate-import.js';
 import { DataService } from './data-service.js';
 import { FileStore } from './file-store.js';
@@ -36,6 +36,9 @@ export interface RouterDeps {
 }
 
 const FILE_KINDS: readonly StoredFileKind[] = ['resume', 'coverLetter', 'other'];
+
+/** Sanity cap for uploads — a resume PDF is <5 MB; anything huge wedges storage. */
+const MAX_FILE_BYTES = 25 * 1_048_576;
 
 /**
  * Requests that expose or mutate the whole vault. Only extension contexts (options, popup,
@@ -74,17 +77,26 @@ export function createRouter(deps: RouterDeps): MessageHandler {
       };
     }
     try {
-      return { ok: true, data: await handle(message, data, files) };
+      return { ok: true, data: await handle(message, data, files, sender) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   };
 }
 
+/** The file the fill bar is currently offered (version-linked, else the sole resume). */
+function offeredAttachFile(vault: Vault): StoredFile | undefined {
+  const active = vault.versions.find((v) => v.id === vault.settings.activeVersionId);
+  const linked = active?.fileId ? vault.files.find((f) => f.id === active.fileId) : undefined;
+  const resumes = vault.files.filter((f) => f.kind === 'resume');
+  return linked ?? (resumes.length === 1 ? resumes[0] : undefined);
+}
+
 async function handle(
   message: { t: string } & Record<string, unknown>,
   data: DataService,
   files: FileStore,
+  sender: MessageSender,
 ): Promise<unknown> {
   switch (message.t) {
     case 'ping':
@@ -147,9 +159,7 @@ async function handle(
       const vault = await data.getVault();
       const active = vault.versions.find((v) => v.id === vault.settings.activeVersionId);
       // Attach offer (SPEC §3.7): the version-linked file, else the sole resume on record.
-      const linked = active?.fileId ? vault.files.find((f) => f.id === active.fileId) : undefined;
-      const resumes = vault.files.filter((f) => f.kind === 'resume');
-      const attachedFile = linked ?? (resumes.length === 1 ? resumes[0] : undefined);
+      const attachedFile = offeredAttachFile(vault);
       return {
         answers: vault.answers.map((a) => ({
           id: a.id,
@@ -204,14 +214,29 @@ async function handle(
       const name = expectNonEmptyString(message.name, 'name');
       const mime = expectNonEmptyString(message.mime, 'mime');
       const bytes = expectArrayBuffer(message.bytes, 'bytes');
+      if (bytes.byteLength > MAX_FILE_BYTES) {
+        throw new Error(
+          `jobfill: file is ${Math.round(bytes.byteLength / 1_048_576)} MB — the limit is ${MAX_FILE_BYTES / 1_048_576} MB`,
+        );
+      }
       const record = await files.add({ kind, name, mime, bytes });
-      await data.addFile(record);
+      try {
+        await data.addFile(record);
+      } catch (err) {
+        await files.delete(record).catch(() => undefined); // never orphan the blob
+        throw err;
+      }
       return { file: record };
     }
 
     case 'file.get': {
       const fileId = expectNonEmptyString(message.fileId, 'fileId');
       const vault = await data.getVault();
+      // Need-to-know for content scripts: only the file the fill bar was offered
+      // (rung-3 review P2) — extension pages may fetch any stored file.
+      if (!isPrivilegedSender(sender) && offeredAttachFile(vault)?.id !== fileId) {
+        throw new Error('jobfill: content pages may only request the offered attach file');
+      }
       const record = vault.files.find((f) => f.id === fileId);
       if (!record) throw new Error(`jobfill: no file with id "${fileId}"`);
       const file = await files.getFile(record);

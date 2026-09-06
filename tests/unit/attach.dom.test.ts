@@ -71,3 +71,75 @@ describe('findHiddenFileInput — multiple upload zones on one page', () => {
     expect(findHiddenFileInput(document.getElementById('cover-zone')!)).toBeNull();
   });
 });
+
+describe('findHiddenFileInput — fail-closed rules (rung-3 review P1-2)', () => {
+  it('token-less sibling field wrappers never leak their input (returns null → drop path)', () => {
+    document.body.innerHTML = `
+      <form>
+        <div id="resume_fieldset">
+          <div id="resume-dropzone" class="drop-zone">Drop your resume here</div>
+        </div>
+        <div id="cover_letter_fieldset">
+          <input type="file" id="cover_letter">
+        </div>
+      </form>`;
+    expect(findHiddenFileInput(document.getElementById('resume-dropzone')!)).toBeNull();
+  });
+
+  it('multiple inputs inside one zone: the resume-looking one wins, never document order', () => {
+    document.body.innerHTML = `
+      <div id="zone" class="upload-card">
+        <input type="file" id="avatar_photo">
+        <input type="file" id="resume_upload">
+      </div>`;
+    expect(findHiddenFileInput(document.getElementById('zone')!)?.id).toBe('resume_upload');
+  });
+
+  it('multiple non-resume inputs inside one zone: null, not first-in-order', () => {
+    document.body.innerHTML = `
+      <div id="zone" class="upload-card">
+        <input type="file" id="avatar_photo">
+        <input type="file" id="banner_image">
+      </div>`;
+    expect(findHiddenFileInput(document.getElementById('zone')!)).toBeNull();
+  });
+
+  it('disabled inputs are never returned', () => {
+    document.body.innerHTML = `
+      <div id="zone" class="drop-zone">
+        <input type="file" id="dead" disabled>
+      </div>`;
+    expect(findHiddenFileInput(document.getElementById('zone')!)).toBeNull();
+  });
+
+  it('ancestor search stays within ONE hop', () => {
+    document.body.innerHTML = `
+      <div><div><div id="zone" class="drop-zone">Drop here</div></div></div>
+      <input type="file" id="far-away">`;
+    expect(findHiddenFileInput(document.getElementById('zone')!)).toBeNull();
+  });
+});
+
+describe('findAttachableDropzone (product drop-path detection)', () => {
+  it('finds a visible input-less upload zone by text', async () => {
+    const { findAttachableDropzone } = await import('../../src/content/attach.js');
+    document.body.innerHTML = `
+      <div id="z" class="drop-zone">Drop your resume here</div>`;
+    expect(findAttachableDropzone(document)?.id).toBe('z');
+  });
+
+  it('never offers a deny-flavoured uploader (passport/ID/bank)', async () => {
+    const { findAttachableDropzone } = await import('../../src/content/attach.js');
+    document.body.innerHTML = `
+      <div class="drop-zone">Upload a copy of your passport</div>
+      <div class="drop-zone">Upload a voided cheque for direct deposit</div>`;
+    expect(findAttachableDropzone(document)).toBeNull();
+  });
+
+  it('skips zones that already contain a file input (scan surfaces those)', async () => {
+    const { findAttachableDropzone } = await import('../../src/content/attach.js');
+    document.body.innerHTML = `
+      <div class="drop-zone">Drop resume<input type="file"></div>`;
+    expect(findAttachableDropzone(document)).toBeNull();
+  });
+});

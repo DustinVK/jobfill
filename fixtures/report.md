@@ -3,7 +3,7 @@
 Snapshot of ACTUAL classifier output (tests/unit/corpus.dom.test.ts); regenerate with
 `npx vitest run corpus -u` and review the diff.
 
-Fixtures: 53 | positive expectations: 76 | deny expectations: 11 | must-not-classify: 7
+Fixtures: 54 | positive expectations: 77 | deny expectations: 12 | must-not-classify: 7
 
 | Fixture / field | Expected | Got | Tier | Signal | Score |
 |---|---|---|---|---|---|
@@ -52,6 +52,7 @@ Fixtures: 53 | positive expectations: 76 | deny expectations: 11 | must-not-clas
 | middle-preferred.html #pref | identity.preferredName | identity.preferredName | auto | label | 0.90 |
 | notice-period-question.html #np | answers.noticePeriod | answers.noticePeriod | suggest | question | 0.85 |
 | over18.html #o | answers.over18 | answers.over18 | suggest | label | 0.90 |
+| passport-upload-deny.html #r | documents.resume | documents.resume | auto | label | 0.90 |
 | phone-parts.html #cc | contact.phoneCountryCode | contact.phoneCountryCode | auto | label | 0.90 |
 | phone-parts.html #num | contact.phone | contact.phone | auto | label | 0.90 |
 | phone-type-select.html #pt | contact.phoneType | contact.phoneType | auto | label | 0.90 |

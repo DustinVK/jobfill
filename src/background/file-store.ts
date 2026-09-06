@@ -1,7 +1,8 @@
 /**
  * FileStore — file bytes behind the blob-store adapter, metadata in the vault (SPEC §6.2).
- * Firefox messaging is structured clone, so `getFile` returns a real `File`; a base64
- * transport fallback stays possible behind this same interface for a future Chrome port.
+ * Firefox messaging is structured clone, so `getFile` returns a real `File`. The base64
+ * transport SPEC §6.2 sketches for a future Chrome port is NOT implemented — the wire
+ * format is Firefox structured-clone only tonight (logged in PROGRESS → Deviations).
  */
 import type { BlobStoreAdapter } from '../shared/adapters/types.js';
 import type { StoredFile, StoredFileKind } from '../shared/types.js';

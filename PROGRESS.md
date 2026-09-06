@@ -1,6 +1,6 @@
 # Progress
 
-Status: rungs 2+3 complete (reviews run, all P0/P1 fixed) | Last green checkpoint: (this commit) 01:45
+Status: rungs 0-3 complete + reviewed; rung 4 items all landed | Last green checkpoint: (this commit) 02:05
 
 This file is the re-anchor point after context loss. It is written for a reader with no memory
 of the session: what is true in the repo right now, what was decided, and what is not done.
@@ -114,6 +114,37 @@ of the session: what is true in the repo right now, what was decided, and what i
   Preact MIT notices retained via `legalComments: 'inline'`.
 - P2s parked (see Parked): count-pinning innerHTML by line-source; `no-restricted-properties`
   for globalThis.browser; running dist/content.js itself in an e2e.
+
+## Rung 3 review findings (fresh subagent; all P0/P1 fixed)
+
+- **P0-1 attach button bypassed the deny-list** (first file input in scan order, no tier check
+  — one click could put a resume into a passport/ID uploader) → target selection now filters
+  tier skip, prefers documents.resume classification, requires a sole unambiguous candidate
+  otherwise, and the tooltip names the target. Corpus fixture pins passport-upload as deny;
+  e2e on a two-upload page (deny-listed input FIRST in DOM) proves it stays empty.
+- P1-1 wrappedJSObject branch half-applied §7.5 → the File and DragEvent are now also built
+  in the page compartment (cloneInto w/ wrapReflectors), verification reads
+  input.wrappedJSObject.files (the page's view), a stripped page compartment fails loudly
+  instead of degrading to the broken plain branch, and the §7.5 constraint comments
+  (isTrusted, quarantined domains, platform floors) are in the header. Still
+  runtime-unverified — named checks added to docs/qa-log.md.
+- P1-2 findHiddenFileInput was fail-open (token-less sibling wrappers leaked their input;
+  first-in-zone won over resume inputs; disabled inputs returned) → rewritten fail-closed:
+  sole-input-in-zone or resume-looking among several; ONE ancestor hop with exactly-one +
+  foreign-zone rejection; disabled skipped; ambiguity → null → drop path. 5 new unit cases.
+- P1-3 drop path was product-unreachable (only the harness called attachFile with a zone) →
+  `findAttachableDropzone` now detects input-less upload zones (deny-flavoured text refused)
+  and the fill bar offers attach on such pages; e2e on dropzone-only.html proves the shipped
+  button delivers via drop.
+- P1-4 'other'-kind files could occupy the resume slot → slot follows kind, 'other' refused
+  with an explanation, Detach action added, links name their slot.
+- P1-5 file delete was one unguarded click with swallowed errors → explicit confirm naming
+  the file, errors surfaced, e2e asserts the confirm message.
+- P2 fixes: file.add capped at 25 MB + blob deleted if the vault write fails · file.get
+  scoped for web-origin senders to the currently-offered attach file · input before change ·
+  drop results always report unverified (toast says "check the site accepted it") ·
+  double-click guard on attach · file-store comment no longer claims an unimplemented base64
+  transport (deviation logged below) · KB display fixed.
 
 ## Rung 2 review findings (fresh subagent; all P0/P1 fixed)
 
@@ -279,6 +310,8 @@ _(nothing)_
 
 ## Deviations (cont.)
 
+- **SPEC §6.2's Chrome-port base64 file transport is not implemented** — the file wire format
+  is Firefox structured-clone only; the FileStore comment says so plainly now.
 - **Undo snapshots survive scan generations.** SPEC §7.8 says snapshots die with the generation;
   ours are element-keyed WeakMaps that persist so Undo still works after the SPA-settle rescan
   that follows every fill (elements replaced by re-renders drop out naturally via the WeakMap).

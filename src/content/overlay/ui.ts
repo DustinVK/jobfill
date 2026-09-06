@@ -10,7 +10,7 @@ import { SIMPLE_CANONICAL_KEYS } from '../../shared/types.js';
 import { classifyFields } from '../../shared/classify.js';
 import { gatherSignals } from '../label.js';
 import type { ScannedField } from '../scan.js';
-import { attachFile } from '../attach.js';
+import { attachFile, findAttachableDropzone } from '../attach.js';
 import type { FillSession, PlanEntry } from '../session.js';
 import { OVERLAY_STYLES } from './styles.js';
 
@@ -134,14 +134,27 @@ export class OverlayUI {
       this.bar.append(reviewBtn);
     }
 
-    const uploadEntry = state.entries.find((e) => e.field.kind === 'file');
-    if (uploadEntry && state.attachedFile) {
+    // Attach target (rung-3 review P0-1): NEVER a deny-listed upload field; prefer the one
+    // classified documents.resume, then a sole non-skip file input, then a detected
+    // input-less dropzone. No safe target → no button.
+    const fileEntries = state.entries.filter(
+      (e) => e.field.kind === 'file' && e.classification.tier !== 'skip',
+    );
+    const resumeEntry =
+      fileEntries.find((e) => e.classification.key === 'documents.resume') ??
+      (fileEntries.length === 1 ? fileEntries[0] : undefined);
+    const dropzoneTarget = resumeEntry ? undefined : findAttachableDropzone(this.doc);
+    const attachTarget = resumeEntry?.field.element ?? dropzoneTarget;
+    if (attachTarget && state.attachedFile) {
+      const targetLabel = resumeEntry
+        ? (resumeEntry.classification.key ?? 'upload field')
+        : 'dropzone';
       const attachBtn = el(this.doc, 'button', 'jf-btn', `Attach ${state.attachedFile.name}`);
       attachBtn.setAttribute('data-jf', 'attach');
-      attachBtn.title = 'Attach the resume linked to the active version';
+      attachBtn.title = `Attach your stored resume to the detected ${targetLabel}`;
       attachBtn.addEventListener(
         'click',
-        () => void this.runAttach(uploadEntry, state.attachedFile!.id),
+        () => void this.runAttach(attachTarget, state.attachedFile!.id, attachBtn),
       );
       this.bar.append(attachBtn);
     }
@@ -733,13 +746,22 @@ export class OverlayUI {
   }
 
   /** Rung 3 (SPEC §3.7): pull the stored file from the background and attach it. */
-  private async runAttach(entry: PlanEntry, fileId: string): Promise<void> {
+  private attaching = false;
+
+  private async runAttach(
+    target: Element,
+    fileId: string,
+    button: HTMLButtonElement,
+  ): Promise<void> {
+    if (this.attaching) return; // double-click guard (drop path would deliver twice)
+    this.attaching = true;
+    button.disabled = true;
     try {
       const { file } = await this.deps.client.send({ t: 'file.get', fileId });
-      const result = attachFile(entry.field.element, file, this.doc.defaultView ?? window);
+      const result = attachFile(target, file, this.doc.defaultView ?? window);
       if (result.ok) {
         this.toast(
-          result.path === 'input'
+          result.verified
             ? `Attached ${file.name}`
             : `Dropped ${file.name} — check the site accepted it`,
         );
@@ -748,6 +770,9 @@ export class OverlayUI {
       }
     } catch (err) {
       this.toast(err instanceof Error ? err.message : 'Could not load the stored file');
+    } finally {
+      this.attaching = false;
+      button.disabled = false;
     }
   }
 

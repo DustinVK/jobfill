@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>input-less dropzone page</title>
+    <style>
+      body {
+        font: 15px/1.5 system-ui;
+        max-width: 40rem;
+        margin: 32px auto;
+      }
+      .drop-zone {
+        border: 2px dashed #888;
+        border-radius: 8px;
+        padding: 32px;
+        text-align: center;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="/event-log.js"></script>
+    <h1>Apply</h1>
+    <label for="first_name">First name</label><input id="first_name" />
+    <label for="last_name">Last name</label><input id="last_name" />
+    <!-- react-dropzone style: NO input element anywhere; drop events only. -->
+    <div class="drop-zone" id="zone">Drop your resume here</div>
+    <div id="received">nothing received</div>
+    <script>
+      window.__receivedFiles = [];
+      const zone = document.getElementById('zone');
+      zone.addEventListener('dragover', (e) => e.preventDefault());
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        for (const file of e.dataTransfer ? e.dataTransfer.files : []) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const bytes = new Uint8Array(reader.result);
+            const head = Array.from(bytes.slice(0, 8))
+              .map((b) => String.fromCharCode(b))
+              .join('');
+            window.__receivedFiles.push({ via: 'drop', name: file.name, size: file.size, head });
+            document.getElementById('received').textContent = JSON.stringify(
+              window.__receivedFiles,
+            );
+          };
+          reader.readAsArrayBuffer(file);
+        }
+      });
+    </script>
+  </body>
+</html>

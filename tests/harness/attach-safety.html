@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>two-upload attach safety</title>
+    <style>
+      body {
+        font: 15px/1.5 system-ui;
+        max-width: 40rem;
+        margin: 32px auto;
+      }
+      label {
+        display: block;
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="/event-log.js"></script>
+    <h1>Onboarding documents</h1>
+    <!-- The DENY-listed uploader comes FIRST in DOM order on purpose. -->
+    <label for="passport-input">Upload a copy of your passport</label>
+    <input type="file" id="passport-input" />
+    <label for="resume-input">Upload your resume/CV</label>
+    <input type="file" id="resume-input" name="resume" />
+    <label for="first_name">First name</label><input id="first_name" />
+    <label for="last_name">Last name</label><input id="last_name" />
+  </body>
+</html>
