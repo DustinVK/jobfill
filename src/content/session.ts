@@ -206,7 +206,22 @@ export class FillSession {
     if (entry.classification.sensitive && !confirmedSensitive) {
       return { ok: false, verified: false, reason: 'sensitive: explicit confirm required' };
     }
-    const value = override ?? entry.value?.value ?? '';
+    let value = override ?? entry.value?.value ?? '';
+    // Segmented date widgets take one slice of the composed MM/YYYY (SPEC §7.4).
+    if (!override && entry.classification.datePart && value) {
+      const match = /^(\d{2})\/(\d{4})$/.exec(value);
+      if (match) {
+        value = entry.classification.datePart === 'month' ? match[1]! : match[2]!;
+      } else {
+        // "Present" (current role) has no month/year slice — tell the user what to do
+        // instead of writing garbage into a date segment.
+        return {
+          ok: false,
+          verified: false,
+          reason: 'current role — leave the end date blank and tick "currently work here"',
+        };
+      }
+    }
     const targets = override ? [override] : (entry.value?.choiceTargets ?? (value ? [value] : []));
 
     let result: FillResult;

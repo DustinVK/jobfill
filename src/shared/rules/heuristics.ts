@@ -20,6 +20,8 @@ export interface HeuristicRule {
   widgets?: readonly ('file' | 'multiline' | 'singleline' | 'choice')[];
   /** Question-context rules only fire for long/question-shaped labels (SPEC §7.3). */
   questionContext?: boolean;
+  /** Rule only applies to date-shaped inputs (MM/YYYY placeholder, type=month/date…). */
+  dateShape?: boolean;
 }
 
 // Word-ish boundaries: the haystack is space-separated words after canonicalization.
@@ -77,7 +79,7 @@ const rules: HeuristicRule[] = [
     // "Current location" fields (Lever/Ashby-style) want the applicant's whereabouts;
     // the popover offers city/state alternates for tighter formats.
     key: 'address.full',
-    positive: /current ?location|^location$|your ?location|where ?are ?you ?(located|based)/,
+    positive: /current ?location|your ?location|where ?are ?you ?(located|based)/,
     negative: /work ?location|job ?location|office|relocat|preference/,
   },
 
@@ -107,9 +109,22 @@ const rules: HeuristicRule[] = [
     negative: /honorific|book|film/,
   },
   {
+    // In-group "Location" means the JOB's location; a location field on a page with no
+    // work context is rationalized to address.full instead.
+    key: 'work[0].location',
+    positive: /^location$|work ?location|job ?location|company ?location/,
+    negative: /current ?location|your ?location|relocat|preference/,
+  },
+  {
+    key: 'work[0].current',
+    positive:
+      /currently ?work(ing)? ?(here|there)|i ?currently ?work|current(ly)? ?employed ?(here|there)/,
+    widgets: ['choice'],
+  },
+  {
     key: 'work[0].summary',
     positive:
-      /responsibilit|duties|describe .*(role|work|job)|accomplishment|impact|experience ?summary/,
+      /responsibilit|duties|describe .*(role|work|job)|accomplishment|impact|experience ?summary|role ?description|job ?description|position ?description|^description$/,
     widgets: ['multiline'],
   },
   { key: 'work[0].startDate', positive: /start ?date|from ?date|employed ?from|date ?started/ },
@@ -118,6 +133,10 @@ const rules: HeuristicRule[] = [
     positive: /end ?date|to ?date|until|employed ?to|date ?ended|leave ?date/,
     negative: /intend|available|start/,
   },
+  // Bare "From"/"To" labels only count on date-SHAPED inputs (MM/YYYY placeholders,
+  // type=month/date) — Workday-style experience groups (SPEC §7.4 date-segmented).
+  { key: 'work[0].startDate', positive: /^from$|^start$/, dateShape: true },
+  { key: 'work[0].endDate', positive: /^to$|^end$|^until$/, dateShape: true },
 
   // --- education (J) --------------------------------------------------------
   {

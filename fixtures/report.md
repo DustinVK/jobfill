@@ -3,7 +3,7 @@
 Snapshot of ACTUAL classifier output (tests/unit/corpus.dom.test.ts); regenerate with
 `npx vitest run corpus -u` and review the diff.
 
-Fixtures: 57 | positive expectations: 81 | deny expectations: 12 | must-not-classify: 7
+Fixtures: 59 | positive expectations: 93 | deny expectations: 12 | must-not-classify: 7
 
 | Fixture / field | Expected | Got | Tier | Signal | Score |
 |---|---|---|---|---|---|
@@ -18,6 +18,7 @@ Fixtures: 57 | positive expectations: 81 | deny expectations: 12 | must-not-clas
 | autocomplete-tokens.html #c | contact.email | contact.email | auto | autocomplete | 1.00 |
 | autocomplete-tokens.html #d | address.postalCode | address.postalCode | auto | autocomplete | 1.00 |
 | autocomplete-tokens.html #e | contact.phone | contact.phone | auto | autocomplete | 1.00 |
+| bare-location-no-work-context.html #loc | address.full | address.full | auto | label | 0.90 |
 | country-code-not-country.html #cc | contact.phoneCountryCode | contact.phoneCountryCode | auto | label | 0.90 |
 | cover-letter-textarea.html #cl | coverLetter.text | coverLetter.text | auto | label | 0.90 |
 | cover-letter-upload.html #c | documents.coverLetter | documents.coverLetter | auto | label | 0.90 |
@@ -88,3 +89,14 @@ Fixtures: 57 | positive expectations: 81 | deny expectations: 12 | must-not-clas
 | workday-description.html #d | work[0].summary | work[0].summary | auto | ariaLabel | 0.85 |
 | workday-names.html #in1 | identity.firstName | identity.firstName | suggest | nameId | 0.70 |
 | workday-names.html #in2 | identity.lastName | identity.lastName | suggest | nameId | 0.70 |
+| workday-repeat-groups.html #g1-company | work[0].company | work[0].company | auto | label | 0.90 |
+| workday-repeat-groups.html #g1-current | work[0].current | work[0].current | auto | label | 0.90 |
+| workday-repeat-groups.html #g1-desc | work[0].summary | work[0].summary | auto | label | 0.90 |
+| workday-repeat-groups.html #g1-from-mm | work[0].startDate | work[0].startDate | auto | label | 0.90 |
+| workday-repeat-groups.html #g1-from-yy | work[0].startDate | work[0].startDate | auto | label | 0.90 |
+| workday-repeat-groups.html #g1-location | work[0].location | work[0].location | auto | label | 0.90 |
+| workday-repeat-groups.html #g1-title | work[0].title | work[0].title | auto | label | 0.90 |
+| workday-repeat-groups.html #g1-to-mm | work[0].endDate | work[0].endDate | auto | label | 0.90 |
+| workday-repeat-groups.html #g2-company | work[1].company | work[1].company | auto | label | 0.90 |
+| workday-repeat-groups.html #g2-desc | work[1].summary | work[1].summary | auto | label | 0.90 |
+| workday-repeat-groups.html #g2-title | work[1].title | work[1].title | auto | label | 0.90 |

@@ -72,6 +72,8 @@ export interface Classification {
   sensitive?: boolean;
   /** Phone format hint from the autocomplete token. */
   phoneFormat?: PhoneFormat;
+  /** Segmented date widgets: which slice of the composed MM/YYYY this input takes (§7.4). */
+  datePart?: 'month' | 'year';
 }
 
 export interface ClassifyOptions {
@@ -152,9 +154,21 @@ function widgetGroup(field: FieldSignals): 'file' | 'multiline' | 'singleline' |
   return 'singleline';
 }
 
+/** Does this input look like (part of) a date widget? */
+export function isDateShaped(field: FieldSignals): boolean {
+  if (field.inputType === 'month' || field.inputType === 'date') return true;
+  const placeholder = field.placeholder?.toLowerCase() ?? '';
+  if (/m{1,2}|y{2,4}|d{1,2}/.test(placeholder) && placeholder.length <= 12) {
+    if (/mm|yy|dd/.test(placeholder)) return true;
+  }
+  const nameId = field.nameId?.toLowerCase() ?? '';
+  return /\b(month|year|date)\b/.test(nameId);
+}
+
 function ruleApplies(rule: HeuristicRule, field: FieldSignals, questionShaped: boolean): boolean {
   if (rule.widgets && !rule.widgets.includes(widgetGroup(field))) return false;
   if (rule.questionContext && !questionShaped) return false;
+  if (rule.dateShape && !isDateShaped(field)) return false;
   return true;
 }
 
@@ -256,6 +270,76 @@ function rationalize(fields: FieldSignals[], results: Map<string, Classification
       );
       if (!explicitlyFirst && ambiguousName) {
         result.key = 'identity.fullName';
+      }
+    }
+  }
+
+  // --- Date-segment pairing (SPEC §7.4 date-segmented): two consecutive date-shaped
+  // inputs (month-ish then year-ish) classified as the same work date are ONE widget —
+  // tag each with the slice it takes so the filler writes "06" and "2021", not "06/2021".
+  const monthish = (f: FieldSignals) =>
+    /mm/.test(f.placeholder?.toLowerCase() ?? '') ||
+    /\bmonth\b/.test((f.nameId ?? '').toLowerCase());
+  const yearish = (f: FieldSignals) =>
+    /yy/.test(f.placeholder?.toLowerCase() ?? '') ||
+    /\byear\b/.test((f.nameId ?? '').toLowerCase());
+  const pairPartners = new Set<string>();
+  for (let i = 0; i < fields.length - 1; i++) {
+    const a = fields[i]!;
+    const b = fields[i + 1]!;
+    const ra = results.get(a.fieldId);
+    const rb = results.get(b.fieldId);
+    if (!ra?.key || !/^work\[0\]\.(startDate|endDate)$/.test(ra.key)) continue;
+    if (ra.datePart) continue;
+    if (!monthish(a) || !yearish(b)) continue;
+    if (rb?.tier === 'skip') continue;
+    ra.datePart = 'month';
+    if (rb) {
+      rb.key = ra.key;
+      rb.score = ra.score;
+      rb.signal = ra.signal;
+      rb.datePart = 'year';
+    }
+    pairPartners.add(b.fieldId);
+  }
+
+  // --- Repeated work groups (SPEC §7.10): heuristics only ever emit work[0].*; on a page
+  // with N "Job title" fields, the Nth occurrence of each work key belongs to the Nth
+  // group → re-index by occurrence in DOM order so group 2 proposes the SECOND included
+  // experience instead of refilling the current job. (Radio-group entries sort after the
+  // main scan pass, so a radio-based "current" toggle could misindex — checkbox-based
+  // groups, the common Workday shape, order correctly.)
+  const workOccurrences = new Map<string, number>();
+  for (const field of fields) {
+    const result = results.get(field.fieldId);
+    if (!result?.key) continue;
+    const match = /^work\[0\]\.([a-zA-Z]+)$/.exec(result.key);
+    if (!match) continue;
+    if (pairPartners.has(field.fieldId)) {
+      // Year segment inherits its month partner's index (set just below).
+      continue;
+    }
+    const workField = match[1]!;
+    const occurrence = workOccurrences.get(workField) ?? 0;
+    workOccurrences.set(workField, occurrence + 1);
+    if (occurrence > 0) result.key = `work[${occurrence}].${workField}`;
+    if (result.datePart === 'month') {
+      const index = fields.findIndex((f) => f.fieldId === field.fieldId);
+      const partner = fields[index + 1];
+      const partnerResult = partner ? results.get(partner.fieldId) : undefined;
+      if (partnerResult?.datePart === 'year') partnerResult.key = result.key;
+    }
+  }
+
+  // --- Location context: work[i].location on a page with NO other work signals is really
+  // the applicant's own location (profile-style forms).
+  const hasWorkContext = [...results.values()].some(
+    (r) => r.key !== undefined && /^work\[\d+\]\.(company|title|summary)$/.test(r.key),
+  );
+  if (!hasWorkContext) {
+    for (const result of results.values()) {
+      if (result.key && /^work\[\d+\]\.location$/.test(result.key)) {
+        result.key = 'address.full';
       }
     }
   }

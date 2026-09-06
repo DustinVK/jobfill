@@ -1,0 +1,47 @@
+<!-- jobfill-fixture
+{
+  "expect": {
+    "#g1-title": "work[0].title",
+    "#g1-company": "work[0].company",
+    "#g1-location": "work[0].location",
+    "#g1-current": "work[0].current",
+    "#g1-from-mm": "work[0].startDate",
+    "#g1-from-yy": "work[0].startDate",
+    "#g1-to-mm": "work[0].endDate",
+    "#g1-desc": "work[0].summary",
+    "#g2-title": "work[1].title",
+    "#g2-company": "work[1].company",
+    "#g2-desc": "work[1].summary"
+  }
+}
+-->
+<h2>Work Experience</h2>
+<div class="experience-group">
+  <h3>Work Experience 1</h3>
+  <label for="g1-title">Job Title *</label><input id="g1-title">
+  <label for="g1-company">Company *</label><input id="g1-company">
+  <label for="g1-location">Location</label><input id="g1-location">
+  <label for="g1-current">I currently work here</label><input type="checkbox" id="g1-current">
+  <div class="dates">
+    <label for="g1-from-mm">From *</label>
+    <input id="g1-from-mm" placeholder="MM" maxlength="2">
+    <input id="g1-from-yy" placeholder="YYYY" maxlength="4" aria-label="From year">
+    <label for="g1-to-mm">To *</label>
+    <input id="g1-to-mm" placeholder="MM" maxlength="2">
+    <input id="g1-to-yy" placeholder="YYYY" maxlength="4" aria-label="To year">
+  </div>
+  <label for="g1-desc">Role Description</label><textarea id="g1-desc" rows="4"></textarea>
+</div>
+<div class="experience-group">
+  <h3>Work Experience 2</h3>
+  <label for="g2-title">Job Title *</label><input id="g2-title">
+  <label for="g2-company">Company *</label><input id="g2-company">
+  <label for="g2-location">Location</label><input id="g2-location">
+  <label for="g2-current">I currently work here</label><input type="checkbox" id="g2-current">
+  <div class="dates">
+    <label for="g2-from-mm">From *</label>
+    <input id="g2-from-mm" placeholder="MM" maxlength="2">
+    <input id="g2-from-yy" placeholder="YYYY" maxlength="4" aria-label="From year">
+  </div>
+  <label for="g2-desc">Role Description</label><textarea id="g2-desc" rows="4"></textarea>
+</div>

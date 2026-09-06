@@ -171,3 +171,73 @@ describe('fillState survives rescans (P1-8)', () => {
     expect(entryBySelector(session, '#fn').fillState).toBeUndefined();
   });
 });
+
+describe('repeated work groups + segmented dates (live Workday-form findings)', () => {
+  const GROUP_HTML = `
+    <div class="experience-group">
+      <label for="g1-title">Job Title *</label><input id="g1-title">
+      <label for="g1-company">Company *</label><input id="g1-company">
+      <label for="g1-from-mm">From *</label>
+      <input id="g1-from-mm" placeholder="MM" maxlength="2">
+      <input id="g1-from-yy" placeholder="YYYY" maxlength="4" aria-label="From year">
+      <label for="g1-desc">Role Description</label><textarea id="g1-desc" rows="4"></textarea>
+    </div>
+    <div class="experience-group">
+      <label for="g2-title">Job Title *</label><input id="g2-title">
+      <label for="g2-company">Company *</label><input id="g2-company">
+      <label for="g2-desc">Role Description</label><textarea id="g2-desc" rows="4"></textarea>
+    </div>`;
+
+  it('group 2 proposes the SECOND included experience, not the current job again', async () => {
+    document.body.innerHTML = GROUP_HTML;
+    const session = await makeSession();
+    await session.refresh(document);
+
+    const g1 = entryBySelector(session, '#g1-company');
+    const g2 = entryBySelector(session, '#g2-company');
+    expect(g1.classification.key).toBe('work[0].company');
+    expect(g2.classification.key).toBe('work[1].company');
+    // Sample vault: Harbor Freight Logistics is current, Brightline Health is previous.
+    expect(g1.value?.value).toBe('Harbor Freight Logistics');
+    expect(g2.value?.value).toBe('Brightline Health');
+    expect(entryBySelector(session, '#g2-desc').value?.value).toContain('claims ingestion');
+  });
+
+  it('segmented From dates fill month and year slices separately', async () => {
+    document.body.innerHTML = GROUP_HTML;
+    const session = await makeSession();
+    await session.refresh(document);
+
+    const mm = entryBySelector(session, '#g1-from-mm');
+    const yy = entryBySelector(session, '#g1-from-yy');
+    expect(mm.classification.key).toBe('work[0].startDate');
+    expect(yy.classification.key).toBe('work[0].startDate');
+    expect(mm.classification.datePart).toBe('month');
+    expect(yy.classification.datePart).toBe('year');
+
+    await session.fillEntry(mm, undefined, true);
+    await session.fillEntry(yy, undefined, true);
+    // Harbor Freight start date is 2022-03.
+    expect((document.querySelector('#g1-from-mm') as HTMLInputElement).value).toBe('03');
+    expect((document.querySelector('#g1-from-yy') as HTMLInputElement).value).toBe('2022');
+  });
+
+  it('a current role refuses to write "Present" into an end-date segment', async () => {
+    document.body.innerHTML = `
+      <div class="experience-group">
+        <label for="t">Job Title *</label><input id="t">
+        <label for="c">Company *</label><input id="c">
+        <label for="to-mm">To *</label>
+        <input id="to-mm" placeholder="MM" maxlength="2">
+        <input id="to-yy" placeholder="YYYY" maxlength="4" aria-label="To year">
+      </div>`;
+    const session = await makeSession();
+    await session.refresh(document);
+    const toMm = entryBySelector(session, '#to-mm');
+    expect(toMm.classification.key).toBe('work[0].endDate');
+    const result = await session.fillEntry(toMm, undefined, true);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('currently work here');
+    expect((document.querySelector('#to-mm') as HTMLInputElement).value).toBe('');
+  });
+});
