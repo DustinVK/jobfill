@@ -17,7 +17,9 @@ export const OVERLAY_STYLES = `
     width: 200px;
     min-width: 150px;
     max-width: min(92vw, 760px);
-    resize: horizontal;
+    min-height: 64px;
+    max-height: 92vh;
+    resize: both;
     overflow: hidden;
   }
   .jf-bar-head {
@@ -30,6 +32,12 @@ export const OVERLAY_STYLES = `
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
+    align-content: flex-start;
+    /* If the user drags the bar SHORTER than its content, the body scrolls — controls
+       must never become unreachable. The header row stays pinned. */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
   }
   .jf-bar-body > .jf-btn { flex: 1 1 auto; }
   .jf-drag {

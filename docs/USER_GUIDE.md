@@ -115,8 +115,9 @@ bytes — in the same format the importer reads. Export before experimenting; **
    clears any review skips.
 9. **Bar controls**: the bar starts as a compact panel in the top-left. Drag the ⠿ grip
    (top-left of the bar) to move it anywhere — it can never end up off-screen, and
-   double-clicking the grip resets it. Drag the grip in its bottom-right corner to resize:
-   narrow stacks the buttons vertically, wide flows them into a row. ✕ (top-right) closes
+   double-clicking the grip resets it. Drag the grip in its bottom-right corner to resize
+   in either direction: narrow stacks the buttons vertically, wide flows them into a row,
+   and if you make it shorter than its contents the button list scrolls. ✕ (top-right) closes
    jobfill; **Badges** hides/shows all the field dots (useful when they cover the page's
    own icons).
 10. Submit the application yourself. jobfill has no submit path — it will never click
