@@ -4,24 +4,28 @@
     <meta charset="utf-8" />
     <title>jobfill harness pages</title>
     <style>
-      body {
-        font:
-          15px/1.5 system-ui,
-          sans-serif;
-        margin: 40px;
-        max-width: 44rem;
-      }
-      li {
-        margin: 4px 0;
-      }
+      body { font: 15px/1.5 system-ui, sans-serif; margin: 40px; max-width: 44rem; }
+      li { margin: 4px 0; }
+      code { background: #eee; padding: 1px 5px; border-radius: 4px; }
     </style>
   </head>
   <body>
     <h1>jobfill test harness</h1>
-    <p>Local pages that reproduce the hard autofill mechanics with zero ATS dependence.</p>
+    <p>
+      Local pages reproducing the hard autofill mechanics with zero ATS dependence. To drive them
+      manually: open a page, then paste the contents of <code>dist-harness/content.harness.js</code>
+      into the console (the e2e injects it the same way) — the overlay appears with the sample
+      vault behind it.
+    </p>
     <ul>
       <li><a href="/blank.html">blank page</a> — overlay smoke test</li>
-      <li><a href="/options-dev.html">options app (in-memory adapters)</a></li>
+      <li><a href="/plain-form.html">plain application form</a> — labels, radios, select, deny-listed password</li>
+      <li><a href="/react-form.html">React 18 controlled form</a> — native-setter + state mirror</li>
+      <li><a href="/late-mount.html">late-mounting SPA form</a> — 600 ms delayed render</li>
+      <li><a href="/shadow-form.html">shadow DOM form</a> — open shadow root</li>
+      <li><a href="/iframe-form.html">same-origin iframe form</a></li>
+      <li><a href="/dropzone.html">dropzone upload</a> — hidden-input + drop-only patterns</li>
+      <li><a href="/options-dev.html">options app</a> — in-memory adapters, localStorage persistence</li>
     </ul>
   </body>
 </html>
