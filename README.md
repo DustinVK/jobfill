@@ -20,7 +20,8 @@ npm run build
 npx web-ext run --source-dir=dist    # launches Firefox with the extension loaded
 ```
 
-Then open the extension's options page (about:addons → jobfill → Preferences) and either:
+Full end-user instructions live in [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md). Short version:
+open the extension's options page (about:addons → jobfill → Preferences) and either:
 
 - **Import JSON** — the fast path. Point an AI at `ai/PROMPT.md` with your resume and it
   produces a valid `import.json` (`ai/examples/sample-import.json` shows the shape), or
@@ -87,8 +88,9 @@ npm run demo          # harness pages + options app together
 The e2e technique: Playwright cannot load WebExtensions into Firefox, so harness pages get
 the built content bundle injected with an in-memory messaging adapter and a seeded vault —
 exercising scanner → classifier → overlay → fillers exactly as shipped. The only untested
-seams are the thin real `browser.*` adapters and the `wrappedJSObject` attach branch (manual
-QA against `web-ext run`).
+seams are the thin real `browser.*` adapters and the `wrappedJSObject` attach branch —
+covered by the manual pass in [`docs/QA_CHECKLIST.md`](docs/QA_CHECKLIST.md) (results in
+`docs/qa-log.md`).
 
 ## License
 
