@@ -66,6 +66,7 @@ declare namespace browser {
   namespace permissions {
     function request(p: { origins?: string[]; permissions?: string[] }): Promise<boolean>;
     function remove(p: { origins?: string[]; permissions?: string[] }): Promise<boolean>;
+    function contains(p: { origins?: string[]; permissions?: string[] }): Promise<boolean>;
     function getAll(): Promise<{ origins?: string[]; permissions?: string[] }>;
   }
 }

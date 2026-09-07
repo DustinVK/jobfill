@@ -1,3 +1,5 @@
+/* Responsive popup: Android presents it FULL-WINDOW, desktop as a panel. Base styles are
+   fluid (phone-first); the fixed panel width applies only to fine-pointer (desktop). */
 :root {
   color-scheme: light dark;
   --bg: #ffffff;
@@ -17,20 +19,42 @@
 }
 body {
   margin: 0;
-  width: 280px;
   background: var(--bg);
   color: var(--fg);
   font:
-    14px/1.45 system-ui,
+    15px/1.45 system-ui,
     -apple-system,
     'Segoe UI',
     sans-serif;
 }
-#app {
-  padding: 12px;
+/* Desktop panel keeps a compact fixed width; Android (coarse pointer) stays fluid. */
+@media (hover: hover) and (pointer: fine) {
+  body {
+    width: 300px;
+    font-size: 14px;
+  }
+}
+#app .popup {
+  max-width: 560px;
+  margin-inline: auto;
+  /* Full-window on Android: respect display cutouts / gesture bars. */
+  padding: calc(12px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
+    calc(14px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+}
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.host {
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .muted {
   color: var(--muted);
@@ -51,18 +75,21 @@ kbd {
 button {
   font: inherit;
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
+  min-height: 44px; /* touch target (SPEC §8.5); comfortable on desktop too */
+  padding: 8px 12px;
+  border-radius: 10px;
   border: 1px solid var(--line);
-  background: var(--accent);
-  color: #fff;
+  background: transparent;
+  color: var(--fg);
   cursor: pointer;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
 }
 button:disabled {
   opacity: 0.5;
   cursor: default;
-}
-button.secondary {
-  background: transparent;
-  color: var(--fg);
 }
