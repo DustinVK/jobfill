@@ -1,6 +1,7 @@
 /** All overlay styles, inlined into the closed shadow root (SPEC §7.9 — no external fetches). */
 
 export const OVERLAY_STYLES = `
+  .jf-bar[hidden] { display: none; } /* author display:flex would beat the UA [hidden] rule */
   .jf-bar {
     position: fixed;
     left: 16px;

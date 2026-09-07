@@ -46,6 +46,13 @@ const extensionBuilds = [
     outfile: `${root}/dist/content.js`,
     format: 'iife',
   },
+  // Auto-run variant for registered scripts on granted origins (SPEC §8.4.4/§8.5).
+  {
+    ...common,
+    entryPoints: [`${root}/src/content/auto-entry.ts`],
+    outfile: `${root}/dist/content-auto.js`,
+    format: 'iife',
+  },
   {
     ...common,
     entryPoints: [`${root}/src/options/main.tsx`],

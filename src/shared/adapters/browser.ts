@@ -8,6 +8,8 @@ import type {
   MessageHandler,
   MessageServer,
   MessageTransport,
+  PermissionsAdapter,
+  RegisteredScript,
   RuntimeAdapter,
   ScriptingAdapter,
   StorageAdapter,
@@ -179,6 +181,38 @@ export function createBrowserScripting(): ScriptingAdapter {
         // top frame was refused (quarantined domain, privileged page). Report it honestly.
         return [{ frameId: 0, ok: false, error: err instanceof Error ? err.message : String(err) }];
       }
+    },
+    async registerContentScripts(scripts): Promise<void> {
+      await browser.scripting.registerContentScripts(scripts);
+    },
+    async unregisterContentScripts(ids): Promise<void> {
+      await browser.scripting.unregisterContentScripts({ ids });
+    },
+    async getRegisteredContentScripts(): Promise<RegisteredScript[]> {
+      const scripts = await browser.scripting.getRegisteredContentScripts();
+      return scripts.map((s) => ({
+        id: s.id,
+        matches: s.matches ?? [],
+        js: s.js ?? [],
+        allFrames: s.allFrames ?? false,
+        runAt: 'document_idle',
+        persistAcrossSessions: s.persistAcrossSessions ?? true,
+      }));
+    },
+  };
+}
+
+export function createBrowserPermissions(): PermissionsAdapter {
+  return {
+    async getAll() {
+      const { origins = [] } = await browser.permissions.getAll();
+      return { origins };
+    },
+    onAdded(cb) {
+      browser.permissions.onAdded.addListener((p) => cb(p.origins ?? []));
+    },
+    onRemoved(cb) {
+      browser.permissions.onRemoved.addListener((p) => cb(p.origins ?? []));
     },
   };
 }

@@ -36,13 +36,21 @@ export interface BootstrapOptions {
   transport: MessageTransport;
   doc?: Document;
   scope?: object;
+  /**
+   * Affordance mode (SPEC §8.4.4/§8.5): injected automatically on a granted origin, so no
+   * takeover — render a quiet corner chip; scanning + fill bar start on tap (or on a later
+   * explicit invocation, which upgrades the session via activate()).
+   */
+  autoRun?: boolean;
 }
 
 export function bootstrap(options: BootstrapOptions): ContentSession {
   const scope = options.scope ?? globalThis;
   const already = existingSession(scope);
   if (already) {
-    already.activate();
+    // An explicit re-invoke upgrades a chip-only session to the full bar; a duplicate
+    // auto-injection (SPA soft navigation) leaves a dormant chip dormant.
+    if (!options.autoRun) already.activate();
     return already;
   }
 
@@ -62,15 +70,28 @@ export function bootstrap(options: BootstrapOptions): ContentSession {
     onClose: () => contentSession.teardown(),
   });
 
+  let chip: HTMLButtonElement | undefined;
+  const start = () => {
+    // First scan + SPA readiness: debounced MutationObserver re-scans (SPEC §7.1).
+    void session.refresh(doc);
+    schedulerRef.current ??= observeAndRescan(doc, () => void session.refresh(doc));
+  };
+  const dismissChip = () => {
+    chip?.remove();
+    chip = undefined;
+  };
+
   const contentSession: ContentSession = {
     client,
     overlay,
     session,
     ui,
     activate() {
-      void session.refresh(doc);
+      dismissChip();
+      start();
     },
     teardown() {
+      dismissChip();
       schedulerRef.current?.stop();
       ui.destroy();
       overlay.destroy();
@@ -80,9 +101,21 @@ export function bootstrap(options: BootstrapOptions): ContentSession {
 
   (scope as GuardedGlobal)[GUARD] = contentSession;
 
-  // First scan + SPA readiness: debounced MutationObserver re-scans (SPEC §7.1).
-  void session.refresh(doc);
-  schedulerRef.current = observeAndRescan(doc, () => void session.refresh(doc));
+  if (options.autoRun) {
+    // Quiet corner chip: no scan, no bar, no observers until the user asks. A tap is not a
+    // privileged gesture — the chip only spends permission that is already granted.
+    chip = doc.createElement('button');
+    chip.type = 'button';
+    chip.className = 'jf-chip';
+    chip.setAttribute('data-jf', 'chip');
+    const dot = doc.createElement('span');
+    dot.className = 'jf-chip-dot';
+    chip.append(dot, doc.createTextNode('jobfill'));
+    chip.addEventListener('click', () => contentSession.activate());
+    layer.append(chip);
+  } else {
+    start();
+  }
 
   return contentSession;
 }

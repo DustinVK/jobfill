@@ -58,6 +58,9 @@ export class OverlayUI {
 
     this.badgeLayer = el(this.doc, 'div');
     this.bar = el(this.doc, 'div', 'jf-bar');
+    // Stays hidden until the first session render — affordance mode (SPEC §8.5) boots the
+    // UI without a scan, and an empty styled bar must not linger next to the chip.
+    this.bar.hidden = true;
     deps.layer.append(this.badgeLayer, this.bar);
 
     deps.session.onChange(() => this.render());
@@ -118,6 +121,7 @@ export class OverlayUI {
   render(): void {
     const { session } = this.deps;
     const state = session.current;
+    this.bar.hidden = false;
     this.bar.replaceChildren();
 
     // Header row: grip top-left, close top-right. Everything else lives in the wrapping

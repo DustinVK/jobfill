@@ -32,13 +32,17 @@ const BASE_STYLES = `
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 8px 14px;
+    min-height: 44px; /* touch target (SPEC §8.5) */
+    box-sizing: border-box;
     border-radius: 999px;
     background: #1f2a37;
     border: 1px solid #33465c;
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
     cursor: pointer;
     user-select: none;
+    font: inherit;
+    color: inherit;
   }
   .jf-chip:focus-visible { outline: 2px solid #7dd3a0; outline-offset: 2px; }
   .jf-chip-dot {

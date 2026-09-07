@@ -5,6 +5,7 @@
 import {
   BrowserMessageServer,
   IndexedDbBlobStore,
+  createBrowserPermissions,
   createBrowserRuntime,
   createBrowserScripting,
   createBrowserStorage,
@@ -19,6 +20,7 @@ const env: BackgroundEnv = {
   server: new BrowserMessageServer(),
   scripting: createBrowserScripting(),
   runtime: createBrowserRuntime(),
+  permissions: createBrowserPermissions(),
 };
 
 env.server.serve(createRouter({ env }));

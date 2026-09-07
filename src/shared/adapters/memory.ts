@@ -12,6 +12,8 @@ import type {
   MessageSender,
   MessageServer,
   MessageTransport,
+  PermissionsAdapter,
+  RegisteredScript,
   RuntimeAdapter,
   ScriptingAdapter,
   StorageAdapter,
@@ -87,13 +89,60 @@ export class MemoryChannel implements MessageTransport, MessageServer {
   }
 }
 
-export function createMemoryScripting(): ScriptingAdapter & { injected: string[][] } {
+export function createMemoryScripting(): ScriptingAdapter & {
+  injected: string[][];
+  registered: Map<string, RegisteredScript>;
+} {
   const injected: string[][] = [];
+  const registered = new Map<string, RegisteredScript>();
   return {
     injected,
+    registered,
     async executeScript(opts): Promise<InjectionResult[]> {
       injected.push(opts.files);
       return [{ frameId: 0, ok: true }];
+    },
+    async registerContentScripts(scripts): Promise<void> {
+      for (const script of scripts) {
+        if (registered.has(script.id)) throw new Error(`duplicate script id ${script.id}`);
+        registered.set(script.id, script);
+      }
+    },
+    async unregisterContentScripts(ids): Promise<void> {
+      for (const id of ids) registered.delete(id);
+    },
+    async getRegisteredContentScripts(): Promise<RegisteredScript[]> {
+      return [...registered.values()];
+    },
+  };
+}
+
+export function createMemoryPermissions(initialOrigins: string[] = []): PermissionsAdapter & {
+  origins: Set<string>;
+  grant(origin: string): void;
+  revoke(origin: string): void;
+} {
+  const origins = new Set(initialOrigins);
+  const added: ((o: string[]) => void)[] = [];
+  const removed: ((o: string[]) => void)[] = [];
+  return {
+    origins,
+    grant(origin) {
+      origins.add(origin);
+      for (const cb of added) cb([origin]);
+    },
+    revoke(origin) {
+      origins.delete(origin);
+      for (const cb of removed) cb([origin]);
+    },
+    async getAll() {
+      return { origins: [...origins] };
+    },
+    onAdded(cb) {
+      added.push(cb);
+    },
+    onRemoved(cb) {
+      removed.push(cb);
     },
   };
 }

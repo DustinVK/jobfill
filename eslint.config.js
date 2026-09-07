@@ -39,6 +39,7 @@ export default tseslint.config(
       'src/shared/adapters/**',
       'src/background/index.ts',
       'src/content/index.ts',
+      'src/content/auto-entry.ts',
       'src/options/main.tsx',
       'src/popup/main.tsx',
     ],

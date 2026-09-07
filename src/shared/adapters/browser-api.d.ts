@@ -42,6 +42,19 @@ declare namespace browser {
       target: { tabId: number; allFrames?: boolean };
       files: string[];
     }): Promise<{ frameId: number; result?: unknown; error?: unknown }[]>;
+    interface RegisteredContentScript {
+      id: string;
+      matches?: string[];
+      js?: string[];
+      allFrames?: boolean;
+      runAt?: string;
+      persistAcrossSessions?: boolean;
+    }
+    function registerContentScripts(scripts: RegisteredContentScript[]): Promise<void>;
+    function unregisterContentScripts(filter?: { ids?: string[] }): Promise<void>;
+    function getRegisteredContentScripts(filter?: {
+      ids?: string[];
+    }): Promise<RegisteredContentScript[]>;
   }
 
   namespace commands {
@@ -68,6 +81,12 @@ declare namespace browser {
     function remove(p: { origins?: string[]; permissions?: string[] }): Promise<boolean>;
     function contains(p: { origins?: string[]; permissions?: string[] }): Promise<boolean>;
     function getAll(): Promise<{ origins?: string[]; permissions?: string[] }>;
+    const onAdded: {
+      addListener(cb: (p: { origins?: string[]; permissions?: string[] }) => void): void;
+    };
+    const onRemoved: {
+      addListener(cb: (p: { origins?: string[]; permissions?: string[] }) => void): void;
+    };
   }
 }
 

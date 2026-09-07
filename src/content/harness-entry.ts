@@ -38,6 +38,8 @@ declare global {
     __jobfillHarness?: HarnessHandle;
     /** Harness pages record page-side events here so tests assert observable effects. */
     __eventLog?: { type: string; target: string; value?: string }[];
+    /** Set BEFORE injection to exercise affordance mode (registered-script auto-run). */
+    __jobfillHarnessAutoRun?: boolean;
   }
 }
 
@@ -80,6 +82,9 @@ function main(): void {
   };
   env.server.serve(createRouter({ env }));
 
-  const session = bootstrap({ transport: channel });
+  const session = bootstrap({
+    transport: channel,
+    autoRun: window.__jobfillHarnessAutoRun === true,
+  });
   window.__jobfillHarness = { session, shadow: session.overlay.shadow, env, attach };
 }

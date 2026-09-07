@@ -55,6 +55,16 @@ export interface InjectionResult {
   error?: string;
 }
 
+/** A persistent content-script registration (SPEC §8.4.4 / §8.5 auto-run). */
+export interface RegisteredScript {
+  id: string;
+  matches: string[];
+  js: string[];
+  allFrames: boolean;
+  runAt: 'document_idle';
+  persistAcrossSessions: boolean;
+}
+
 /** Content-script injection (SPEC §8.4). */
 export interface ScriptingAdapter {
   executeScript(opts: {
@@ -62,6 +72,16 @@ export interface ScriptingAdapter {
     allFrames?: boolean;
     files: string[];
   }): Promise<InjectionResult[]>;
+  registerContentScripts(scripts: RegisteredScript[]): Promise<void>;
+  unregisterContentScripts(ids: string[]): Promise<void>;
+  getRegisteredContentScripts(): Promise<RegisteredScript[]>;
+}
+
+/** Granted optional permissions — drives auto-run registration (SPEC §8.5). */
+export interface PermissionsAdapter {
+  getAll(): Promise<{ origins: string[] }>;
+  onAdded(cb: (origins: string[]) => void): void;
+  onRemoved(cb: (origins: string[]) => void): void;
 }
 
 /** Extension-level events and helpers the background needs. */
@@ -79,4 +99,6 @@ export interface BackgroundEnv {
   server: MessageServer;
   scripting: ScriptingAdapter;
   runtime: RuntimeAdapter;
+  /** Optional: harness/demo environments run without a permissions surface. */
+  permissions?: PermissionsAdapter;
 }
