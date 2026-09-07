@@ -88,6 +88,34 @@ In priority order; stop anywhere:
 
 **Explicitly forbidden even here:** anything in §1 rule 5.
 
+### Rung 5 — Firefox for Android (SPEC §8.5; added 2026-09-06 at user direction)
+
+One extension, feature-detected — no fork, no desktop regression:
+
+- Manifest: `browser_specific_settings.gecko_android.strict_min_version: "128.0"` alongside
+  the existing desktop gecko block.
+- Popup becomes the primary trigger: responsive full-window layout (no fixed 280px width),
+  "Fill this page" starts `scripting.executeScript` synchronously in the click handler,
+  "Always run on this site" calls `permissions.request` synchronously in the gesture (popup
+  is the only permission-acquiring surface).
+- Auto-run on granted origins via `scripting.registerContentScripts`
+  (`persistAcrossSessions: true`) in **affordance mode**: compact corner chip, tap →
+  activate; the chip never requests permissions. Grant → register; revoke → unregister;
+  background wake reconciles registrations against `permissions.getAll`.
+- Overlay touch pass: `visualViewport`-driven CSS vars (no bare `100vh`), ≥44px targets on
+  touch, no hover-only affordances, bound field kept above the keyboard.
+- Background survives Android process kills: audit for in-memory-only state; everything
+  rebuilds from `storage`/IndexedDB on wake.
+- Never rely on: `commands`, `sidebar_action`, `contextMenus`, `action.openPopup()`,
+  `storage.managed`, `storage.sync`-as-sync.
+
+**DoD-5:** verify green · popup unit tests prove the synchronous-gesture ordering
+(executeScript / permissions.request called before any await in the handler) · e2e covers
+the popup "Fill this page" injection path and a mobile-viewport (≤412px) overlay render
+with touch-target and viewport-fit assertions · affordance-mode e2e (auto-injected chip →
+tap → full bar) · real-device pass over Tailscale adb (docs/ANDROID_TESTING.md) is the
+on-device step, tracked separately.
+
 ## 4. Review protocol (end of every rung)
 
 1. `npm run verify` and (Rung ≥ 0) `npm run e2e` green.

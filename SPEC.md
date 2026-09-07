@@ -666,6 +666,39 @@ type Req =
 3. Content bundle is idempotent (guard on a module-scope flag); re-invoke = re-scan + reopen overlay.
 4. On granted origins, `scripting.registerContentScripts` (`persistAcrossSessions: true`, `runAt: "document_idle"`, `allFrames: true`) auto-injects; the overlay stays collapsed until fields are found (a quiet corner chip, not a takeover).
 
+### 8.5 Firefox Android support
+
+Same Gecko engine: scanner/classifier/fillers/overlay/shadow-root/file-attach logic ships
+unchanged. One extension, no fork — the platform gap is chrome + invocation, handled by
+feature detection:
+
+- **Manifest**: `browser_specific_settings.gecko_android.strict_min_version: "128.0"` (its
+  presence is what marks the extension Android-compatible; 128 for optional host
+  permissions + `permissions.request` prompt parity with desktop).
+- **Invocation**: `commands` shortcuts and `sidebar_action` do not exist on Android. The
+  `action` popup is the primary trigger everywhere: Android presents it full-window, so the
+  popup is a responsive page (fluid width, safe-area padding), not a fixed 280px panel. Its
+  "Fill this page" button starts `scripting.executeScript` synchronously in the click
+  handler (`activeTab`); "Always run on this site" calls `permissions.request` synchronously
+  in the gesture — the popup remains the ONLY place permission can be acquired. On granted
+  origins the registered script auto-runs in **affordance mode**: a compact corner chip
+  (§8.4.4) that expands to the fill bar on tap. A tap on a page-injected element is not a
+  privileged gesture, so the chip never requests permissions — it only uses what is already
+  granted.
+- **Touch overlay**: geometry keys off `visualViewport` (CSS vars `--jf-vvh`/`--jf-vvt`
+  updated on resize; never bare `100vh` — the on-screen keyboard and dynamic address bar
+  change the visual height). Interactive targets ≥ 44px under `pointer: coarse` /
+  touch (`.jf-touch`). No hover-only affordances. The palette's bound field is kept scrolled
+  above the keyboard.
+- **Process death**: Android kills the event page aggressively. Invariant (§8.1) re-stated:
+  no in-memory-only background state — `DataService` is a read-through cache over
+  `storage.local`, blob bytes live in IndexedDB, script registrations persist
+  (`persistAcrossSessions`), and every listener is registered at top level so a woken page
+  rebuilds itself per message.
+- **Not relied upon anywhere**: `commands` (desktop nicety only), `sidebar_action`,
+  `contextMenus`, `action.openPopup()`, `storage.managed`, `storage.sync` as an actual sync
+  transport.
+
 ---
 
 ## 9. Import/export & the AI import skill

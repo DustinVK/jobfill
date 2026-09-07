@@ -364,6 +364,11 @@ _(nothing)_
 
 ## Deviations (cont.)
 
+- **2026-09-06 — SPEC.md edited at explicit user direction** (normally read-only per
+  CLAUDE.md): added §8.5 "Firefox Android support" and it alone; the user's instruction was
+  "Update SPEC.md with a 'Firefox Android support' section". Rung 5 added to
+  OVERNIGHT_PLAN.md §3 under the same instruction.
+
 - **SPEC §6.2's Chrome-port base64 file transport is not implemented** — the file wire format
   is Firefox structured-clone only; the FileStore comment says so plainly now.
 - **Undo snapshots survive scan generations.** SPEC §7.8 says snapshots die with the generation;
