@@ -168,6 +168,31 @@ affordance-chip permission-boundary paths. Fixes applied before closing the rung
 
 Not taken: none outstanding. All P1/P2 addressed.
 
+## Rung 5 on-device pass (real Pixel 9a, Firefox release, over Tailscale) — 2026-09-06
+
+DoD-5's on-device step, done. Paired via wireless debugging over the tailnet, ran
+`npm run run:android`, drove the real extension against a clean served form
+(`docs/examples/android-test-form.html`). Setup + the mobile-driven dev loop are in
+`docs/ANDROID_TESTING.md`; full session recap in `docs/HANDOFF.md`.
+
+Confirmed on device: page load, full-window popup, "Fill this page" injection, auto-run chip
+after granting a site. Three real-device findings, each fixed with a test (commit `bf5232d`):
+
+- **Empty vault was a silent no-op** — no fill button, no explanation. Added a `hasData` flag
+  to `fill.context` (`vaultHasFillableData`) → the bar shows "No data yet — import your
+  résumé" + an **Open options** button. Content scripts can't open options directly, so added
+  the narrow non-vault `options.open` message + `RuntimeAdapter.openOptionsPage`.
+- **Palette "Copied to clipboard" lied on the Pixel 9a** — `copyToClipboard` now returns a
+  real success boolean (awaited), the toast tells the truth, and the `execCommand` fallback
+  was hardened for Android (off-screen focusable textarea + explicit `setSelectionRange`,
+  not `.select()`).
+- **No touch dismissal for the palette** (no Esc key) — added an ✕ close button in a new
+  palette header row.
+
+Lessons captured in ANDROID_TESTING.md → Gotchas: pairing-dialog port ≠ main port; Firefox's
+own "Remote debugging via USB" toggle is separate; `web-ext run` dies when Firefox closes
+(just re-run); wireless debugging needs Wi-Fi to enable.
+
 ## Rung 0 review findings (fresh subagent, fixed before rung 1 commit)
 
 - **P0 check-local-only bypassable** → rewrote as 3 layers: URL-literal scan (exact allowlist,

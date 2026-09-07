@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>On-device test — Job Application</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; max-width: 34rem; margin: 0 auto; padding: 16px 16px 120px; }
+      label { display: block; margin-top: 14px; font-weight: 600; }
+      input, select, textarea { width: 100%; padding: 10px; box-sizing: border-box; font-size: 16px; margin-top: 4px; }
+      h1 { font-size: 20px; }
+      fieldset { margin-top: 14px; }
+    </style>
+  </head>
+  <body>
+    <h1>Apply — On-Device Test Co.</h1>
+    <p>Real jobfill extension, real form. No page scripts inject anything.</p>
+    <form id="apply">
+      <label for="first_name">First Name *</label>
+      <input id="first_name" name="first_name" type="text" autocomplete="given-name" required />
+      <label for="last_name">Last Name *</label>
+      <input id="last_name" name="last_name" type="text" autocomplete="family-name" required />
+      <label for="email">Email *</label>
+      <input id="email" name="email" type="email" autocomplete="email" required />
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" autocomplete="tel" />
+      <label for="city">City</label>
+      <input id="city" name="city" type="text" />
+      <label for="linkedin">LinkedIn URL</label>
+      <input id="linkedin" name="linkedin" type="url" />
+      <label for="company">Current employer</label>
+      <input id="company" name="company" type="text" />
+      <label for="title">Job title</label>
+      <input id="title" name="title" type="text" />
+      <label for="summary">Describe your current role</label>
+      <textarea id="summary" name="summary" rows="5"></textarea>
+
+      <fieldset>
+        <legend>Will you now or in the future require visa sponsorship?</legend>
+        <label><input type="radio" name="sponsorship" value="yes" /> Yes</label>
+        <label><input type="radio" name="sponsorship" value="no" /> No</label>
+      </fieldset>
+
+      <label for="authorized">Are you legally authorized to work here?</label>
+      <select id="authorized" name="authorized">
+        <option value="">Select…</option>
+        <option>Yes</option>
+        <option>No</option>
+      </select>
+
+      <label for="password">Create account password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" />
+
+      <button type="submit">Submit application</button>
+    </form>
+    <script>
+      // Prove jobfill never submits: this must stay false.
+      window.__submitted = false;
+      document.getElementById('apply').addEventListener('submit', (e) => {
+        e.preventDefault();
+        window.__submitted = true;
+        console.log('[phone-test] FORM SUBMITTED — this should never happen from jobfill');
+      });
+      console.log('[phone-test] clean form loaded, no jobfill page scripts');
+    </script>
+  </body>
+</html>
