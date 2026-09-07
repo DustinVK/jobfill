@@ -67,3 +67,75 @@ test.describe('auto-run affordance mode', () => {
     );
   });
 });
+
+test.describe('mobile-viewport overlay render (Pixel-ish, touch)', () => {
+  test.use({ viewport: { width: 393, height: 745 }, hasTouch: true });
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/plain-form.html');
+    await injectContentBundle(page);
+    await waitForOverlay(page);
+    // hasTouch flips navigator.maxTouchPoints in the harness browser; if this engine build
+    // doesn't emulate it, force the class — the detection branch is exercised on-device.
+    await page.evaluate(() => {
+      window.__jobfillHarness!.shadow.querySelector('.jf-layer')!.classList.add('jf-touch');
+    });
+  });
+
+  test('fill bar fits the phone viewport with ≥44px touch targets', async ({ page }) => {
+    const bar = await page.evaluate(() => {
+      const shadow = window.__jobfillHarness!.shadow;
+      const rect = shadow.querySelector('.jf-bar')!.getBoundingClientRect();
+      const targets = [...shadow.querySelectorAll<HTMLElement>('.jf-bar .jf-btn, .jf-bar select')]
+        .filter((n) => n.offsetParent !== null || n.getBoundingClientRect().height > 0)
+        .map((n) => ({
+          label: n.textContent?.slice(0, 12) ?? n.tagName,
+          height: n.getBoundingClientRect().height,
+        }));
+      return { left: rect.left, right: rect.right, targets };
+    });
+    expect(bar.left).toBeGreaterThanOrEqual(0);
+    expect(bar.right).toBeLessThanOrEqual(393);
+    expect(bar.targets.length).toBeGreaterThan(0);
+    for (const target of bar.targets) {
+      expect(target.height, `target "${target.label}"`).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test('palette fits the viewport, rows are touch-sized, and tracks --jf-vvh (keyboard)', async ({
+    page,
+  }) => {
+    await page.evaluate(() => {
+      window
+        .__jobfillHarness!.shadow.querySelector<HTMLButtonElement>('[data-jf="palette"]')!
+        .click();
+    });
+    await page.waitForFunction(
+      () =>
+        (window.__jobfillHarness?.shadow.querySelectorAll('[data-jf="palette-results"] .jf-option')
+          .length ?? 0) > 0,
+    );
+    const palette = await page.evaluate(() => {
+      const shadow = window.__jobfillHarness!.shadow;
+      const rect = shadow.querySelector('[data-jf="palette-dialog"]')!.getBoundingClientRect();
+      const rows = [...shadow.querySelectorAll<HTMLElement>('.jf-option, .jf-cat')].map(
+        (n) => n.getBoundingClientRect().height,
+      );
+      return { left: rect.left, right: rect.right, rows };
+    });
+    expect(palette.left).toBeGreaterThanOrEqual(0);
+    expect(palette.right).toBeLessThanOrEqual(393);
+    for (const height of palette.rows) expect(height).toBeGreaterThanOrEqual(44);
+
+    // Simulate the on-screen keyboard: the vv var shrinks → the palette must follow.
+    const squeezed = await page.evaluate(() => {
+      const shadow = window.__jobfillHarness!.shadow;
+      const layer = shadow.querySelector<HTMLElement>('.jf-layer')!;
+      layer.style.setProperty('--jf-vvh', '320px');
+      const rect = shadow.querySelector('[data-jf="palette-dialog"]')!.getBoundingClientRect();
+      return { height: rect.height, top: rect.top };
+    });
+    expect(squeezed.height).toBeLessThanOrEqual(320 * 0.84 + 1);
+    expect(squeezed.top).toBeCloseTo(320 * 0.08, 0);
+  });
+});

@@ -40,6 +40,8 @@ export class OverlayUI {
   private readonly badgeLayer: HTMLElement;
   private popoverEl: HTMLElement | undefined;
   private paletteEl: HTMLElement | undefined;
+  /** Field the open palette is bound to — kept above the on-screen keyboard (SPEC §8.5). */
+  private paletteTarget: HTMLElement | undefined;
   private popoverEntry: PlanEntry | undefined;
   private reviewQueue: PlanEntry[] = [];
   private reviewing = false;
@@ -73,14 +75,53 @@ export class OverlayUI {
       new ResizeObserver(() => this.scheduleReposition()).observe(this.bar);
     }
 
+    // Touch platform (SPEC §8.5): coarse pointer → bigger targets, no hover dependence.
+    const win = this.doc.defaultView;
+    if (win && (win.matchMedia('(pointer: coarse)').matches || win.navigator.maxTouchPoints > 0)) {
+      deps.layer.classList.add('jf-touch');
+    }
+
+    // visualViewport → CSS vars (SPEC §8.5): the on-screen keyboard and dynamic URL bar
+    // resize the VISUAL viewport only; fixed-position geometry must track it, never 100vh.
+    this.viewport = win?.visualViewport ?? undefined;
+    this.updateViewportVars();
+    this.viewport?.addEventListener('resize', this.onViewportResize);
+    this.viewport?.addEventListener('scroll', this.updateViewportVars);
+
     // Palette shortcut works while the overlay is alive (SPEC §3.6).
     this.doc.addEventListener('keydown', this.onGlobalKeydown, true);
   }
+
+  private viewport: VisualViewport | undefined;
+
+  private readonly updateViewportVars = (): void => {
+    const win = this.doc.defaultView;
+    const height = this.viewport?.height ?? win?.innerHeight;
+    const top = this.viewport?.offsetTop ?? 0;
+    if (height !== undefined) {
+      this.deps.layer.style.setProperty('--jf-vvh', `${Math.round(height)}px`);
+    }
+    this.deps.layer.style.setProperty('--jf-vvt', `${Math.round(top)}px`);
+  };
+
+  private readonly onViewportResize = (): void => {
+    this.updateViewportVars();
+    // Keyboard appeared while the palette is bound to a field: keep that field visible
+    // (resize only — reacting to visual-viewport scroll would fight the user's panning).
+    if (this.paletteEl && this.paletteTarget?.isConnected) {
+      this.paletteTarget.scrollIntoView({
+        block: 'center',
+        behavior: 'instant' as ScrollBehavior,
+      });
+    }
+  };
 
   destroy(): void {
     this.doc.removeEventListener('keydown', this.onGlobalKeydown, true);
     this.doc.defaultView?.removeEventListener('scroll', this.reposition, true);
     this.doc.defaultView?.removeEventListener('resize', this.reposition);
+    this.viewport?.removeEventListener('resize', this.onViewportResize);
+    this.viewport?.removeEventListener('scroll', this.updateViewportVars);
   }
 
   private readonly onGlobalKeydown = (event: KeyboardEvent): void => {
@@ -714,6 +755,7 @@ export class OverlayUI {
       (active instanceof HTMLElement && active.isContentEditable)
         ? active
         : undefined;
+    this.paletteTarget = target;
 
     const palette = el(this.doc, 'div', 'jf-palette');
     palette.setAttribute('data-jf', 'palette-dialog'); // the BAR button owns data-jf="palette"
@@ -979,6 +1021,7 @@ export class OverlayUI {
   closePalette(): void {
     this.paletteEl?.remove();
     this.paletteEl = undefined;
+    this.paletteTarget = undefined;
   }
 
   /**

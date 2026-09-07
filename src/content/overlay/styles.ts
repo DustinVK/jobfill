@@ -1,5 +1,10 @@
-/** All overlay styles, inlined into the closed shadow root (SPEC §7.9 — no external fetches). */
-
+/** All overlay styles, inlined into the closed shadow root (SPEC §7.9 — no external fetches).
+ *
+ * Viewport rule (SPEC §8.5): geometry uses --jf-vvh/--jf-vvt (visualViewport height/offset,
+ * set by OverlayUI; fallback = classic viewport units) — never bare 100vh, because Android's
+ * on-screen keyboard and dynamic URL bar change the VISUAL height only. Touch rule: the
+ * layer gets .jf-touch on coarse-pointer devices; interactive targets grow to ≥44px there.
+ */
 export const OVERLAY_STYLES = `
   .jf-bar[hidden] { display: none; } /* author display:flex would beat the UA [hidden] rule */
   .jf-bar {
@@ -19,7 +24,7 @@ export const OVERLAY_STYLES = `
     min-width: 150px;
     max-width: min(92vw, 760px);
     min-height: 64px;
-    max-height: 92vh;
+    max-height: calc(var(--jf-vvh, 100vh) * 0.92);
     resize: both;
     overflow: hidden;
   }
@@ -143,7 +148,7 @@ export const OVERLAY_STYLES = `
     background: #131a21;
     color: #e7edf3;
   }
-  .jf-options { display: flex; flex-direction: column; gap: 2px; max-height: 180px; overflow: auto; }
+  .jf-options { display: flex; flex-direction: column; gap: 2px; max-height: 180px; overflow: auto; min-height: 0; }
   .jf-option {
     text-align: left;
     font: inherit;
@@ -165,9 +170,13 @@ export const OVERLAY_STYLES = `
   .jf-palette {
     position: fixed;
     left: 50%;
-    top: 12vh;
+    /* Anchored inside the VISUAL viewport: sits high (8%) so the on-screen keyboard,
+       which can eat half the height, leaves search + results reachable. */
+    top: calc(var(--jf-vvt, 0px) + var(--jf-vvh, 100vh) * 0.08);
     transform: translateX(-50%);
     width: min(560px, 94vw);
+    max-height: calc(var(--jf-vvh, 100vh) * 0.84);
+    box-sizing: border-box;
     z-index: 4;
     background: #1f2a37;
     border: 1px solid #33465c;
@@ -224,4 +233,20 @@ export const OVERLAY_STYLES = `
     z-index: 5;
     box-shadow: 0 6px 20px rgba(0,0,0,0.4);
   }
+
+  /* ---- Touch platform (SPEC §8.5): ≥44px targets, no hover dependence. -------------- */
+  .jf-layer.jf-touch { font-size: 15px; }
+  .jf-touch .jf-btn,
+  .jf-touch .jf-option,
+  .jf-touch .jf-cat,
+  .jf-touch .jf-drag,
+  .jf-touch select {
+    min-height: 44px;
+    box-sizing: border-box;
+  }
+  .jf-touch .jf-drag { display: inline-flex; align-items: center; padding: 0 10px; }
+  .jf-touch .jf-cat { padding: 8px 14px; }
+  .jf-touch .jf-option { align-items: center; }
+  /* Badges stay small enough not to cover inputs, but grow to a usable tap size. */
+  .jf-touch .jf-badge { width: 24px; height: 24px; }
 `;
