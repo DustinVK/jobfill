@@ -102,6 +102,71 @@ test.describe('popup "Fill this page" injection path', () => {
   });
 });
 
+test.describe('touch dismissal & empty-vault prompt (on-device findings)', () => {
+  test('the palette has a visible close button (no Esc key on touch)', async ({ page }) => {
+    await page.goto('/plain-form.html');
+    await injectContentBundle(page);
+    await waitForOverlay(page);
+    await page.evaluate(() => {
+      window
+        .__jobfillHarness!.shadow.querySelector<HTMLButtonElement>('[data-jf="palette"]')!
+        .click();
+    });
+    await page.waitForFunction(() =>
+      window.__jobfillHarness?.shadow.querySelector('[data-jf="palette-dialog"]'),
+    );
+    const close = await page.evaluate(() => {
+      const btn = window.__jobfillHarness!.shadow.querySelector<HTMLButtonElement>(
+        '[data-jf="palette-close"]',
+      );
+      return { present: !!btn, height: btn?.getBoundingClientRect().height ?? 0 };
+    });
+    expect(close.present).toBe(true);
+    await page.evaluate(() => {
+      window
+        .__jobfillHarness!.shadow.querySelector<HTMLButtonElement>('[data-jf="palette-close"]')!
+        .click();
+    });
+    const gone = await page.evaluate(
+      () => window.__jobfillHarness!.shadow.querySelector('[data-jf="palette-dialog"]') === null,
+    );
+    expect(gone).toBe(true);
+  });
+
+  test('empty vault shows an import prompt + Open options (not a silent no-op)', async ({
+    page,
+  }) => {
+    await page.goto('/plain-form.html');
+    await page.evaluate(() => {
+      window.__jobfillHarnessEmptyVault = true;
+    });
+    await injectContentBundle(page);
+    await waitForOverlay(page);
+    const view = await page.evaluate(() => {
+      const shadow = window.__jobfillHarness!.shadow;
+      return {
+        barText: shadow.querySelector('.jf-bar')!.textContent ?? '',
+        hasOpenOptions: !!shadow.querySelector('[data-jf="open-options"]'),
+        hasFillAll: !!shadow.querySelector('[data-jf="fill-all"]'),
+      };
+    });
+    expect(view.barText.toLowerCase()).toContain('no data yet');
+    expect(view.hasOpenOptions).toBe(true);
+    expect(view.hasFillAll).toBe(false);
+
+    // Tapping it routes through the background to openOptionsPage (memory runtime records it).
+    await page.evaluate(() => {
+      window
+        .__jobfillHarness!.shadow.querySelector<HTMLButtonElement>('[data-jf="open-options"]')!
+        .click();
+    });
+    await page.waitForFunction(() => {
+      const runtime = window.__jobfillHarness!.env.runtime as { optionsOpened?: number };
+      return (runtime.optionsOpened ?? 0) > 0;
+    });
+  });
+});
+
 test.describe('mobile-viewport overlay render (Pixel-ish, touch)', () => {
   test.use({ viewport: { width: 393, height: 745 }, hasTouch: true });
 

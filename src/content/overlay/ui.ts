@@ -215,7 +215,22 @@ export class OverlayUI {
     const autoCount = session.autoEntries().length;
     const suggestCount = session.suggestEntries().length;
 
-    if (state.entries.length === 0) {
+    // Empty vault: nothing to fill, and no fill button would appear — say why, and offer the
+    // one action that fixes it (on-device Android finding: silent no-op was baffling).
+    if (!state.hasData) {
+      const prompt = el(
+        this.doc,
+        'span',
+        'jf-hint',
+        'No data yet — import your résumé to start filling.',
+      );
+      const openOptions = el(this.doc, 'button', 'jf-btn jf-btn-primary', 'Open options');
+      openOptions.setAttribute('data-jf', 'open-options');
+      openOptions.addEventListener('click', () => {
+        void this.deps.client.send({ t: 'options.open' }).catch(() => undefined);
+      });
+      body.append(prompt, openOptions);
+    } else if (state.entries.length === 0) {
       body.append(
         el(
           this.doc,
@@ -668,8 +683,12 @@ export class OverlayUI {
       this.toast(result.reason ?? 'Could not fill this field');
       if (entry.field.kind === 'listbox-button') {
         // Honest fallback when the widget refuses to be driven: value on the clipboard.
-        this.copyToClipboard(value);
-        this.toast("Copied — pick the option in the site's own widget");
+        const copied = await this.copyToClipboard(value);
+        this.toast(
+          copied
+            ? "Copied — pick the option in the site's own widget"
+            : "Couldn’t copy — open the site's own widget and pick the option",
+        );
       }
       if (review) this.advanceReview();
       return;
@@ -765,7 +784,10 @@ export class OverlayUI {
     palette.setAttribute('role', 'dialog');
     palette.setAttribute('aria-label', 'jobfill search');
 
-    palette.append(
+    // Header row: hint on the left, close ✕ on the right. Touch devices have no Esc key, so
+    // the palette needs a visible dismiss (on-device Android finding).
+    const paletteHead = el(this.doc, 'div', 'jf-palette-head');
+    paletteHead.append(
       el(
         this.doc,
         'div',
@@ -775,6 +797,12 @@ export class OverlayUI {
           : `No field focused — Enter copies to clipboard`,
       ),
     );
+    const paletteClose = el(this.doc, 'button', 'jf-btn jf-btn-quiet', '✕');
+    paletteClose.setAttribute('data-jf', 'palette-close');
+    paletteClose.setAttribute('aria-label', 'Close search');
+    paletteClose.addEventListener('click', () => this.closePalette());
+    paletteHead.append(paletteClose);
+    palette.append(paletteHead);
 
     const search = el(this.doc, 'input', 'jf-search');
     search.placeholder = 'Search snippets, answers, everything…';
@@ -873,8 +901,14 @@ export class OverlayUI {
         });
         return;
       } else {
-        this.copyToClipboard(result.value);
-        this.toast('Copied to clipboard');
+        // Copy is async and can be refused (Android Firefox, no document focus): await the
+        // real outcome and tell the truth (was: unconditional "Copied", which lied on the
+        // Pixel 9a on-device test).
+        void this.copyToClipboard(result.value).then((ok) => {
+          this.toast(
+            ok ? 'Copied to clipboard' : 'Couldn’t copy — focus a field and use Enter to fill',
+          );
+        });
       }
       this.closePalette();
     };
@@ -1109,16 +1143,32 @@ export class OverlayUI {
       .catch(() => undefined);
   }
 
-  private copyToClipboard(text: string): void {
-    void navigator.clipboard?.writeText(text).catch(() => {
-      // Fallback: hidden textarea + execCommand (older clipboard permission models).
+  /** Resolves true only when the value actually reached the clipboard. */
+  private async copyToClipboard(text: string): Promise<boolean> {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // Async Clipboard API refused (no focus / permission) — fall through to execCommand.
+    }
+    // Fallback: off-screen textarea + execCommand. Must be focusable (not display:none) and
+    // explicitly range-selected — `.select()` alone is unreliable on Android (on-device fix).
+    try {
       const ta = this.doc.createElement('textarea');
       ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
       this.doc.body.append(ta);
-      ta.select();
-      this.doc.execCommand('copy');
+      ta.focus();
+      ta.setSelectionRange(0, text.length);
+      const ok = this.doc.execCommand('copy');
       ta.remove();
-    });
+      return ok;
+    } catch {
+      return false;
+    }
   }
 
   private toast(message: string): void {

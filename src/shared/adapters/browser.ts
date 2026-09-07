@@ -236,5 +236,6 @@ export function createBrowserRuntime(): RuntimeAdapter {
         if (tab.id !== undefined) cb(tab.id);
       });
     },
+    openOptionsPage: () => browser.runtime.openOptionsPage(),
   };
 }

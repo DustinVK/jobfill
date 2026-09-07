@@ -107,6 +107,8 @@ export interface ProtocolMap {
     req: NoPayload;
     res: {
       answers: Pick<AnswerEntry, 'id' | 'key' | 'question' | 'patterns' | 'sensitive'>[];
+      /** False when the vault holds no fillable data yet — the overlay prompts to import. */
+      hasData: boolean;
       fillAllThreshold: number;
       suggestThreshold: number;
       activeVersionName: string;
@@ -129,6 +131,10 @@ export interface ProtocolMap {
    * available to content scripts: appends ONE custom, non-sensitive answers-bank entry.
    */
   'answers.quickSave': { req: { question: string; value: string }; res: { id: string } };
+
+  /** Opens the extension's options page — the overlay's "import your data" prompt (SPEC §8.5).
+   *  Content scripts can't call runtime.openOptionsPage themselves. Not vault-scoped. */
+  'options.open': { req: NoPayload; res: { ok: true } };
 
   'file.list': { req: NoPayload; res: { files: StoredFile[] } };
   'file.add': {

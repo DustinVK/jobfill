@@ -188,6 +188,7 @@ export const OVERLAY_STYLES = `
     gap: 8px;
   }
   .jf-palette .jf-search { width: 100%; box-sizing: border-box; font-size: 15px; padding: 9px 10px; }
+  .jf-palette-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .jf-palette-target { font-size: 11px; color: #9bb0c3; }
   .jf-cats { display: flex; gap: 4px; flex-wrap: wrap; }
   .jf-group {

@@ -43,6 +43,8 @@ export interface SessionState {
   entries: PlanEntry[];
   generation: number;
   fillAllEligible: boolean;
+  /** False when the vault has no fillable data yet — the bar prompts to import (SPEC §8.5). */
+  hasData: boolean;
   activeVersionName: string;
   /** All versions (id + name) for the fill bar's inline switcher (SPEC §3.3). */
   versions: { id: string; name: string }[];
@@ -74,6 +76,7 @@ export class FillSession {
     entries: [],
     generation: 0,
     fillAllEligible: false,
+    hasData: true, // optimistic until the first fill.context lands (avoids a prompt flash)
     activeVersionName: '',
     versions: [],
     activeVersionId: '',
@@ -186,6 +189,7 @@ export class FillSession {
       entries,
       generation: this.state.generation + 1,
       fillAllEligible: result.fillAllEligible,
+      hasData: context.hasData,
       activeVersionName: context.activeVersionName,
       versions: context.versions,
       activeVersionId: context.activeVersionId,

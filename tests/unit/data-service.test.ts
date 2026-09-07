@@ -313,6 +313,36 @@ describe('rung-1 review regressions', () => {
     await expect(client.send({ t: 'ping' })).resolves.toMatchObject({ pong: true });
   });
 
+  it('fill.context reports hasData=false on an empty vault, true once data exists', async () => {
+    const { client } = makeStack();
+    // Fresh vault: default version, no atoms → the overlay should prompt to import.
+    const empty = await client.send({ t: 'fill.context' });
+    expect(empty.hasData).toBe(false);
+    // Import the sample and it flips.
+    await client.send({
+      t: 'vault.import',
+      document: sampleImport as unknown as InterchangeDocument,
+    });
+    const seeded = await client.send({ t: 'fill.context' });
+    expect(seeded.hasData).toBe(true);
+  });
+
+  it('options.open reaches runtime.openOptionsPage and is allowed to content scripts', async () => {
+    const channel = new MemoryChannel({ tabId: 1, frameId: 0, origin: 'https://jobs.example.com' });
+    const runtime = createMemoryRuntime();
+    const env: BackgroundEnv = {
+      storage: createMemoryStorage(),
+      blobs: new MemoryBlobStore(),
+      server: channel,
+      scripting: createMemoryScripting(),
+      runtime,
+    };
+    env.server.serve(createRouter({ env }));
+    const client = new ProtocolClient(channel); // web-origin (content-script) sender
+    await expect(client.send({ t: 'options.open' })).resolves.toEqual({ ok: true });
+    expect(runtime.optionsOpened).toBe(1);
+  });
+
   it('EEO answers cannot enter the vault via vault.patch while the gate is off (P1-2)', async () => {
     const { client } = makeStack();
     const { vault } = await client.send({ t: 'vault.get' });

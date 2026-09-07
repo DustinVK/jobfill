@@ -80,7 +80,7 @@ export function createRouter(deps: RouterDeps): MessageHandler {
       };
     }
     try {
-      return { ok: true, data: await handle(message, data, files, sender) };
+      return { ok: true, data: await handle(message, data, files, sender, deps.env) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
@@ -95,15 +95,40 @@ function offeredAttachFile(vault: Vault): StoredFile | undefined {
   return linked ?? (resumes.length === 1 ? resumes[0] : undefined);
 }
 
+/**
+ * True when the vault holds anything jobfill could actually fill with. A fresh install has
+ * an auto-created default version but no atoms — the overlay uses this to prompt "import
+ * your data" instead of silently offering nothing (on-device Android finding).
+ */
+function vaultHasFillableData(vault: Vault): boolean {
+  const p = vault.profile;
+  return Boolean(
+    p.identity.firstName ||
+    p.identity.lastName ||
+    p.contact.email ||
+    p.contact.phone?.national ||
+    p.skills.length ||
+    vault.work.length ||
+    vault.education.length ||
+    vault.answers.length ||
+    vault.files.length,
+  );
+}
+
 async function handle(
   message: { t: string } & Record<string, unknown>,
   data: DataService,
   files: FileStore,
   sender: MessageSender,
+  env: BackgroundEnv,
 ): Promise<unknown> {
   switch (message.t) {
     case 'ping':
       return { pong: true, version: EXTENSION_VERSION };
+
+    case 'options.open':
+      await env.runtime.openOptionsPage();
+      return { ok: true };
 
     // --- vault --------------------------------------------------------------
     case 'vault.get':
@@ -171,6 +196,7 @@ async function handle(
           patterns: a.patterns,
           sensitive: a.sensitive,
         })),
+        hasData: vaultHasFillableData(vault),
         fillAllThreshold: vault.settings.fillAllThreshold,
         suggestThreshold: vault.settings.suggestThreshold,
         activeVersionName: active?.name ?? 'Default',

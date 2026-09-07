@@ -92,6 +92,8 @@ export interface RuntimeAdapter {
   onCommand(cb: (command: string, tabId: number | undefined) => void): void;
   /** Fires only when no default_popup is set; kept for parity and future use. */
   onActionClicked(cb: (tabId: number) => void): void;
+  /** Opens the extension's options page (SPEC §8.1). */
+  openOptionsPage(): Promise<void>;
 }
 
 /** Everything the background is allowed to reach the browser through. */

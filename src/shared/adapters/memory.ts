@@ -155,18 +155,24 @@ export function createMemoryPermissions(initialOrigins: string[] = []): Permissi
 
 export function createMemoryRuntime(): RuntimeAdapter & {
   fireCommand(command: string, tabId?: number): void;
+  optionsOpened: number;
 } {
   const commandCbs: ((command: string, tabId: number | undefined) => void)[] = [];
-  return {
-    getURL: (path) => `/${path.replace(/^\//, '')}`,
-    onCommand(cb) {
+  const runtime = {
+    getURL: (path: string) => `/${path.replace(/^\//, '')}`,
+    onCommand(cb: (command: string, tabId: number | undefined) => void) {
       commandCbs.push(cb);
     },
     onActionClicked() {
       /* no toolbar in memory mode */
     },
-    fireCommand(command, tabId) {
+    async openOptionsPage() {
+      runtime.optionsOpened += 1;
+    },
+    fireCommand(command: string, tabId?: number) {
       for (const cb of commandCbs) cb(command, tabId);
     },
+    optionsOpened: 0,
   };
+  return runtime;
 }
