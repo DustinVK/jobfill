@@ -71,14 +71,30 @@ export function bootstrap(options: BootstrapOptions): ContentSession {
   });
 
   let chip: HTMLButtonElement | undefined;
-  const start = () => {
-    // First scan + SPA readiness: debounced MutationObserver re-scans (SPEC §7.1).
-    void session.refresh(doc);
-    schedulerRef.current ??= observeAndRescan(doc, () => void session.refresh(doc));
-  };
   const dismissChip = () => {
     chip?.remove();
     chip = undefined;
+  };
+
+  /**
+   * Scan + show, failure-safe. The affordance chip (if any) is dismissed only AFTER the
+   * first scan succeeds — a rejected `fill.context` (dead background on Android) must not
+   * strand the user with neither chip nor bar (rung-5 review P1). On failure the chip is
+   * re-armed so the tap is retryable.
+   */
+  const activate = (): Promise<void> => {
+    if (chip) chip.disabled = true; // debounce double-taps while the scan is in flight
+    return session.refresh(doc).then(
+      () => {
+        dismissChip();
+        schedulerRef.current ??= observeAndRescan(doc, () => void session.refresh(doc));
+      },
+      (err: unknown) => {
+        if (chip) chip.disabled = false;
+        ui.notify('jobfill couldn’t start on this page — tap to retry');
+        throw err;
+      },
+    );
   };
 
   const contentSession: ContentSession = {
@@ -87,8 +103,7 @@ export function bootstrap(options: BootstrapOptions): ContentSession {
     session,
     ui,
     activate() {
-      dismissChip();
-      start();
+      void activate().catch(() => undefined);
     },
     teardown() {
       dismissChip();
@@ -114,7 +129,7 @@ export function bootstrap(options: BootstrapOptions): ContentSession {
     chip.addEventListener('click', () => contentSession.activate());
     layer.append(chip);
   } else {
-    start();
+    contentSession.activate();
   }
 
   return contentSession;

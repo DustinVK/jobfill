@@ -108,6 +108,12 @@ export function createMemoryScripting(): ScriptingAdapter & {
         registered.set(script.id, script);
       }
     },
+    async updateContentScripts(scripts): Promise<void> {
+      for (const script of scripts) {
+        if (!registered.has(script.id)) throw new Error(`update of unknown script id ${script.id}`);
+        registered.set(script.id, script);
+      }
+    },
     async unregisterContentScripts(ids): Promise<void> {
       for (const id of ids) registered.delete(id);
     },

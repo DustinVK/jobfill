@@ -4,7 +4,7 @@
  */
 import { render } from 'preact';
 import { createBrowserScripting } from '../shared/adapters/browser.js';
-import { CONTENT_FILES } from '../background/invoke.js';
+import { AUTO_CONTENT_FILES, CONTENT_FILES } from '../background/invoke.js';
 import { App, type PopupEnv } from './App.js';
 
 const scripting = createBrowserScripting();
@@ -36,6 +36,11 @@ const env: PopupEnv = {
   },
   removeSitePermission(url) {
     return browser.permissions.remove({ origins: [originPattern(url)] });
+  },
+  async showAffordance(tabId) {
+    // Just-granted site: show the chip on the already-open page (registered scripts only
+    // auto-run on the next navigation). activeTab from the popup gesture covers this tab.
+    await scripting.executeScript({ tabId, allFrames: true, files: AUTO_CONTENT_FILES });
   },
   async openOptions() {
     await browser.runtime.openOptionsPage();

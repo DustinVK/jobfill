@@ -51,6 +51,7 @@ declare namespace browser {
       persistAcrossSessions?: boolean;
     }
     function registerContentScripts(scripts: RegisteredContentScript[]): Promise<void>;
+    function updateContentScripts(scripts: RegisteredContentScript[]): Promise<void>;
     function unregisterContentScripts(filter?: { ids?: string[] }): Promise<void>;
     function getRegisteredContentScripts(filter?: {
       ids?: string[];

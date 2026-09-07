@@ -95,8 +95,10 @@ test.describe('popup "Fill this page" injection path', () => {
     await expect(autoRun).toContainText('Always run on jobs.example.com');
     await autoRun.click();
     await expect(autoRun).toContainText('Auto-runs on jobs.example.com');
-    const requests = await page.evaluate(() => window.__popupHarness?.permissionRequests);
-    expect(requests).toEqual(['https://jobs.example.com/apply']);
+    const record = await page.evaluate(() => window.__popupHarness);
+    expect(record?.permissionRequests).toEqual(['https://jobs.example.com/apply']);
+    // A fresh grant shows the chip on the already-open page (no reload needed).
+    expect(record?.affordanceShown).toBe(true);
   });
 });
 

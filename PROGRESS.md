@@ -139,6 +139,35 @@ Swept `src/background/` for in-memory-only state that a woken event page couldn'
 Conclusion: the design already held the invariant; the only addition needed was the
 wake-time registration reconcile (added in invoke.ts).
 
+## Rung 5 review (fresh subagent over the whole rung-5 diff) — SHIP, fixes applied
+
+Verdict SHIP, no P0s after tracing the gesture-token, permission→registration, and
+affordance-chip permission-boundary paths. Fixes applied before closing the rung:
+
+- **P1 — chip dismissed before the session was proven alive.** A rejected first scan (dead
+  background on Android) left the user with no chip and no bar. `bootstrap.ts` now dismisses
+  the chip only after the first successful `refresh`, re-arms it + toasts on failure
+  (`OverlayUI.notify`), and the observer starts only on success. Initial non-autoRun boot
+  goes through the same failure-safe path.
+- **P2 — non-atomic unregister→register.** Replaced with `scripting.updateContentScripts`
+  when the registration already exists (new adapter method) — no window a process kill could
+  fall into with auto-run OFF.
+- **P2 — swallowed sync failures.** `syncAutoRunRegistration` failures now `console.warn`
+  instead of surfacing as unhandled rejections / silent auto-run-off.
+- **P2 — lying `getRegisteredContentScripts`.** Passes through the browser's real
+  allFrames/persistAcrossSessions now.
+- **P2 — revoke misreport under a broad grant.** The popup re-reads `hasSitePermission`
+  after any toggle rather than trusting the op result, so a per-origin remove that can't
+  revoke an `<all_urls>` grant keeps the button honest (new unit test).
+- **P2 — grant did nothing until reload.** The popup now injects `content-auto.js` into the
+  already-open tab on a fresh grant (`showAffordance`), so the chip appears immediately.
+- **P2 (test honesty) — viewport JS wiring wasn't exercised.** Added
+  `tests/unit/overlay-viewport.dom.test.ts` with a stubbed `visualViewport`: asserts the CSS
+  vars seed + follow a resize, the bound-field scroll on keyboard, the innerHeight fallback,
+  and listener teardown. Also hardened `matchMedia` access defensively.
+
+Not taken: none outstanding. All P1/P2 addressed.
+
 ## Rung 0 review findings (fresh subagent, fixed before rung 1 commit)
 
 - **P0 check-local-only bypassable** → rewrote as 3 layers: URL-literal scan (exact allowlist,

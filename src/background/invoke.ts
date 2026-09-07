@@ -46,17 +46,18 @@ export async function syncAutoRunRegistration(env: BackgroundEnv): Promise<void>
   }
   const wanted = [...origins].sort();
   if (existing && wanted.join('\n') === [...existing.matches].sort().join('\n')) return;
-  if (existing) await env.scripting.unregisterContentScripts([AUTO_SCRIPT_ID]);
-  await env.scripting.registerContentScripts([
-    {
-      id: AUTO_SCRIPT_ID,
-      matches: wanted,
-      js: AUTO_CONTENT_FILES,
-      allFrames: true,
-      runAt: 'document_idle',
-      persistAcrossSessions: true,
-    },
-  ]);
+  const script = {
+    id: AUTO_SCRIPT_ID,
+    matches: wanted,
+    js: AUTO_CONTENT_FILES,
+    allFrames: true,
+    runAt: 'document_idle' as const,
+    persistAcrossSessions: true,
+  };
+  // Update in place when it already exists — an unregister→register pair leaves a window
+  // where a process kill (Android) would strand auto-run OFF until the next wake (P2).
+  if (existing) await env.scripting.updateContentScripts([script]);
+  else await env.scripting.registerContentScripts([script]);
 }
 
 export function registerInvocations(env: BackgroundEnv): void {
@@ -74,10 +75,12 @@ export function registerInvocations(env: BackgroundEnv): void {
   // reconciles (the later, correct registration could be clobbered by the earlier one).
   let syncChain = Promise.resolve();
   const queueSync = () => {
-    syncChain = syncChain.then(
-      () => syncAutoRunRegistration(env),
-      () => syncAutoRunRegistration(env),
-    );
+    const run = () =>
+      syncAutoRunRegistration(env).catch((err) =>
+        // A persistent failure means auto-run silently off — surface it, don't swallow (P2).
+        console.warn('jobfill: auto-run registration sync failed', err),
+      );
+    syncChain = syncChain.then(run, run);
   };
   env.permissions?.onAdded(queueSync);
   env.permissions?.onRemoved(queueSync);

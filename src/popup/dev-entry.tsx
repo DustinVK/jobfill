@@ -13,6 +13,7 @@ declare global {
       closed: boolean;
       permissionRequests: string[];
       optionsOpened: boolean;
+      affordanceShown: boolean;
     };
   }
 }
@@ -21,8 +22,11 @@ const record: NonNullable<Window['__popupHarness']> = {
   closed: false,
   permissionRequests: [],
   optionsOpened: false,
+  affordanceShown: false,
 };
 window.__popupHarness = record;
+
+let granted = false; // stateful permission backing for the harness
 
 function injectContentHarness(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -42,14 +46,19 @@ const env: PopupEnv = {
     return injectContentHarness();
   },
   async hasSitePermission() {
-    return false;
+    return granted;
   },
   async requestSitePermission(url) {
     record.permissionRequests.push(url);
+    granted = true;
     return true;
   },
   async removeSitePermission() {
+    granted = false;
     return true;
+  },
+  async showAffordance() {
+    record.affordanceShown = true;
   },
   async openOptions() {
     record.optionsOpened = true;

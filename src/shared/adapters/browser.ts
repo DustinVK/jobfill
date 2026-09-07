@@ -185,11 +185,18 @@ export function createBrowserScripting(): ScriptingAdapter {
     async registerContentScripts(scripts): Promise<void> {
       await browser.scripting.registerContentScripts(scripts);
     },
+    async updateContentScripts(scripts): Promise<void> {
+      await browser.scripting.updateContentScripts(scripts);
+    },
     async unregisterContentScripts(ids): Promise<void> {
       await browser.scripting.unregisterContentScripts({ ids });
     },
     async getRegisteredContentScripts(): Promise<RegisteredScript[]> {
       const scripts = await browser.scripting.getRegisteredContentScripts();
+      // Reflect the browser's actual values, don't fabricate (rung-5 review P2).
+      // persistAcrossSessions/allFrames pass through; runAt is a free string in the API but
+      // RegisteredScript narrows it — jobfill only ever manages its own 'document_idle'
+      // script, so anything else is coerced (and would be a bug upstream, not a silent lie).
       return scripts.map((s) => ({
         id: s.id,
         matches: s.matches ?? [],

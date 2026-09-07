@@ -76,8 +76,11 @@ export class OverlayUI {
     }
 
     // Touch platform (SPEC §8.5): coarse pointer → bigger targets, no hover dependence.
+    // matchMedia is defended in case an exotic page context lacks it (never crash the overlay).
     const win = this.doc.defaultView;
-    if (win && (win.matchMedia('(pointer: coarse)').matches || win.navigator.maxTouchPoints > 0)) {
+    const coarse =
+      typeof win?.matchMedia === 'function' && win.matchMedia('(pointer: coarse)').matches;
+    if (win && (coarse || win.navigator.maxTouchPoints > 0)) {
       deps.layer.classList.add('jf-touch');
     }
 
@@ -1123,5 +1126,10 @@ export class OverlayUI {
     toast.setAttribute('data-jf', 'toast');
     this.deps.layer.append(toast);
     setTimeout(() => toast.remove(), 2600);
+  }
+
+  /** Public toast, for the bootstrap activation path (e.g. a failed first scan). */
+  notify(message: string): void {
+    this.toast(message);
   }
 }

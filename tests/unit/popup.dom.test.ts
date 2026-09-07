@@ -19,6 +19,7 @@ function makeEnv(overrides: Partial<PopupEnv> = {}): PopupEnv & {
   openOptions: ReturnType<typeof vi.fn>;
   requestSitePermission: ReturnType<typeof vi.fn>;
   removeSitePermission: ReturnType<typeof vi.fn>;
+  showAffordance: ReturnType<typeof vi.fn>;
 } {
   return {
     getActiveTab: async () => ({ id: 7, url: 'https://jobs.example.com/apply' }),
@@ -26,6 +27,7 @@ function makeEnv(overrides: Partial<PopupEnv> = {}): PopupEnv & {
     hasSitePermission: async () => false,
     requestSitePermission: vi.fn(async () => true),
     removeSitePermission: vi.fn(async () => true),
+    showAffordance: vi.fn(async () => undefined),
     openOptions: vi.fn(async () => undefined),
     close: vi.fn(),
     isTouch: false,
@@ -112,8 +114,25 @@ describe('popup', () => {
   });
 
   describe('per-site auto-run (the only permission-acquiring surface)', () => {
+    /** Stateful permission backing: request/remove flip what hasSitePermission reports. */
+    function statefulEnv(startGranted: boolean, overrides: Partial<PopupEnv> = {}) {
+      let granted = startGranted;
+      return makeEnv({
+        hasSitePermission: async () => granted,
+        requestSitePermission: vi.fn(async () => {
+          granted = true;
+          return true;
+        }),
+        removeSitePermission: vi.fn(async () => {
+          granted = false;
+          return true;
+        }),
+        ...overrides,
+      });
+    }
+
     it('requests the host permission SYNCHRONOUSLY in the gesture and reflects the grant', async () => {
-      const env = makeEnv();
+      const env = statefulEnv(false);
       const root = await mount(env);
       await settle(() => root.querySelector('[data-testid="auto-run"]') !== null);
       expect(root.querySelector('[data-testid="auto-run"]')?.textContent).toContain(
@@ -128,10 +147,15 @@ describe('popup', () => {
           root.querySelector('[data-testid="auto-run"]')?.textContent?.includes('Auto-runs') ??
           false,
       );
+      // Fresh grant shows the chip on the already-open page without waiting for a reload.
+      expect(env.showAffordance).toHaveBeenCalledWith(7);
     });
 
     it('a denied prompt leaves auto-run off', async () => {
-      const env = makeEnv({ requestSitePermission: vi.fn(async () => false) as never });
+      const env = makeEnv({
+        hasSitePermission: async () => false,
+        requestSitePermission: vi.fn(async () => false) as never,
+      });
       const root = await mount(env);
       await settle(() => root.querySelector('[data-testid="auto-run"]') !== null);
       click(root, 'auto-run');
@@ -139,10 +163,11 @@ describe('popup', () => {
         () => !(root.querySelector('[data-testid="auto-run"]') as HTMLButtonElement).disabled,
       );
       expect(root.querySelector('[data-testid="auto-run"]')?.textContent).toContain('Always run');
+      expect(env.showAffordance).not.toHaveBeenCalled();
     });
 
     it('an already-granted site offers revoke and removes the permission', async () => {
-      const env = makeEnv({ hasSitePermission: async () => true });
+      const env = statefulEnv(true);
       const root = await mount(env);
       await settle(
         () =>
@@ -156,6 +181,26 @@ describe('popup', () => {
           root.querySelector('[data-testid="auto-run"]')?.textContent?.includes('Always run') ??
           false,
       );
+    });
+
+    it('a broad grant that a per-site remove cannot revoke keeps the toggle honest', async () => {
+      // <all_urls> covers the origin: contains() stays true, remove() changes nothing.
+      const env = makeEnv({
+        hasSitePermission: async () => true,
+        removeSitePermission: vi.fn(async () => false) as never,
+      });
+      const root = await mount(env);
+      await settle(
+        () =>
+          root.querySelector('[data-testid="auto-run"]')?.textContent?.includes('Auto-runs') ??
+          false,
+      );
+      click(root, 'auto-run');
+      await settle(
+        () => !(root.querySelector('[data-testid="auto-run"]') as HTMLButtonElement).disabled,
+      );
+      // Still granted (via the broad grant) → the button must NOT claim it's off.
+      expect(root.querySelector('[data-testid="auto-run"]')?.textContent).toContain('Auto-runs');
     });
 
     it('never offers site permission on non-http(s) pages', async () => {

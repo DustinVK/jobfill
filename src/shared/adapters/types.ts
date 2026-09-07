@@ -73,6 +73,8 @@ export interface ScriptingAdapter {
     files: string[];
   }): Promise<InjectionResult[]>;
   registerContentScripts(scripts: RegisteredScript[]): Promise<void>;
+  /** Atomic in-place update — no unregister/register gap a process kill could fall into. */
+  updateContentScripts(scripts: RegisteredScript[]): Promise<void>;
   unregisterContentScripts(ids: string[]): Promise<void>;
   getRegisteredContentScripts(): Promise<RegisteredScript[]>;
 }

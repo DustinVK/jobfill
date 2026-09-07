@@ -25,6 +25,8 @@ export interface PopupEnv {
   /** Prompts for the site's host permission. MUST be invoked synchronously in the gesture. */
   requestSitePermission(url: string): Promise<boolean>;
   removeSitePermission(url: string): Promise<boolean>;
+  /** Injects the affordance (chip) bundle so a just-granted site shows it without a reload. */
+  showAffordance(tabId: number): Promise<void>;
   openOptions(): Promise<void>;
   close(): void;
   /** Coarse-pointer device (Android/tablet) — hides keyboard-only hints. */
@@ -97,12 +99,23 @@ export function App({ env }: { env: PopupEnv }) {
     if (!tab?.url || autoRun === undefined) return;
     // permissions.request MUST start synchronously in the click — after an await Firefox
     // treats it as gesture-less and rejects. remove() has no such rule but shares the path.
-    const op = autoRun ? env.removeSitePermission(tab.url) : env.requestSitePermission(tab.url);
+    const url = tab.url;
+    const tabId = tab.id;
     const wasGrant = !autoRun;
+    const op = autoRun ? env.removeSitePermission(url) : env.requestSitePermission(url);
     setBusy(true);
     setError('');
-    op.then((changed) => {
-      if (changed) setAutoRun(wasGrant);
+    op.then(async (changed) => {
+      // Re-read the true state rather than trusting `changed`: a broad grant (e.g. all-sites
+      // from about:addons) makes a per-origin remove a no-op, so the toggle must reflect
+      // what's actually granted, not what we asked for (rung-5 review P2).
+      const granted = await env.hasSitePermission(url);
+      setAutoRun(granted);
+      // A fresh grant only auto-runs on the NEXT navigation; inject the chip now so "Always
+      // run" isn't a silent no-op on the page already open (rung-5 review P2).
+      if (wasGrant && changed && granted && tabId !== undefined) {
+        await env.showAffordance(tabId).catch(() => undefined);
+      }
     })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
