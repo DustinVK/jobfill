@@ -68,6 +68,38 @@ test.describe('auto-run affordance mode', () => {
   });
 });
 
+test.describe('popup "Fill this page" injection path', () => {
+  test('the real popup App injects the bundle and the overlay comes up on the page', async ({
+    page,
+  }) => {
+    await page.goto('/popup-dev.html');
+    const fillButton = page.locator('[data-testid="fill-page"]');
+    await expect(fillButton).toBeEnabled();
+    await fillButton.click();
+    // The mock env's fillPage loaded the content harness into this page — full loop.
+    await waitForOverlay(page);
+    const closed = await page.evaluate(() => window.__popupHarness?.closed);
+    expect(closed).toBe(true);
+    // The injected session is live: fill-all fills the page's form.
+    await page.evaluate(() => {
+      window
+        .__jobfillHarness!.shadow.querySelector<HTMLButtonElement>('[data-jf="fill-all"]')!
+        .click();
+    });
+    await expect(page.locator('#first_name')).toHaveValue('Maya');
+  });
+
+  test('"Always run on this site" flows through the permission request', async ({ page }) => {
+    await page.goto('/popup-dev.html');
+    const autoRun = page.locator('[data-testid="auto-run"]');
+    await expect(autoRun).toContainText('Always run on jobs.example.com');
+    await autoRun.click();
+    await expect(autoRun).toContainText('Auto-runs on jobs.example.com');
+    const requests = await page.evaluate(() => window.__popupHarness?.permissionRequests);
+    expect(requests).toEqual(['https://jobs.example.com/apply']);
+  });
+});
+
 test.describe('mobile-viewport overlay render (Pixel-ish, touch)', () => {
   test.use({ viewport: { width: 393, height: 745 }, hasTouch: true });
 

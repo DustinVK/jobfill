@@ -84,6 +84,12 @@ const harnessBuilds = [
   },
   {
     ...common,
+    entryPoints: [`${root}/src/popup/dev-entry.tsx`],
+    outfile: `${root}/dist-harness/popup.dev.js`,
+    format: 'esm',
+  },
+  {
+    ...common,
     // Real React (not Preact) for the controlled-input harness — dev dependency only.
     jsx: 'automatic',
     jsxImportSource: 'react',
@@ -109,6 +115,7 @@ const builds = harnessOnly ? harnessBuilds : extensionBuilds;
 if (harnessOnly) {
   mkdirSync(`${root}/dist-harness`, { recursive: true });
   cpSync(`${root}/src/options/options.css`, `${root}/dist-harness/options.css`);
+  cpSync(`${root}/src/popup/popup.css`, `${root}/dist-harness/popup.css`);
 } else {
   rmSync(`${root}/dist`, { recursive: true, force: true });
   copyStatic();

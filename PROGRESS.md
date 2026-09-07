@@ -97,6 +97,48 @@ of the session: what is true in the repo right now, what was decided, and what i
 - [x] CI workflow mirroring verify + e2e
 - [x] ai/ deliverables (SKILL.md, PROMPT.md, sample-resume worked example)
 
+### Rung 5 — Firefox for Android (SPEC §8.5)
+
+- [x] Manifest `browser_specific_settings.gecko_android.strict_min_version "128.0"` (desktop
+      gecko block kept)
+- [x] Popup is the primary trigger: responsive full-window layout (fixed 300px only under
+      `hover:hover and pointer:fine`), "Fill this page" starts `executeScript` synchronously
+      in the click, "Always run on this site" calls `permissions.request` synchronously —
+      the popup is the only permission-acquiring surface. Keyboard tip hidden on touch.
+- [x] Auto-run on granted origins: `scripting.registerContentScripts`
+      (`persistAcrossSessions:true`) → `content-auto.js` in affordance mode (corner chip,
+      tap → full bar, chip never requests permissions). Grant→register, revoke→unregister,
+      background-wake `syncAutoRunRegistration` reconciles vs `permissions.getAll`; syncs
+      serialized so rapid grant/revoke can't clobber.
+- [x] Touch overlay: `visualViewport` → `--jf-vvh`/`--jf-vvt` CSS vars (no bare 100vh),
+      `.jf-touch` (coarse pointer / maxTouchPoints) grows targets to ≥44px, palette anchored
+      in the visual viewport and bound field kept above the keyboard on vv resize.
+- [x] Background kill-resilience audited — no in-memory-only state (see review note below).
+- [x] Not relied on: `commands`/`sidebar_action`/`contextMenus`/`action.openPopup()`/
+      `storage.managed`/`storage.sync`-as-sync.
+- [x] **DoD-5:** verify green · popup unit tests pin the synchronous-gesture ordering ·
+      e2e covers popup "Fill this page" injection, affordance chip→bar, and mobile-viewport
+      (393px) overlay render with ≥44px targets + `--jf-vvh` tracking · on-device pass over
+      Tailscale adb is the separate manual step (docs/ANDROID_TESTING.md).
+
+## Rung 5 resilience audit (SPEC §8.1/§8.5 — background survives process kill)
+
+Swept `src/background/` for in-memory-only state that a woken event page couldn't rebuild:
+
+- `DataService.cache` (data-service.ts:30) is a read-through cache over `storage.local` —
+  `load()` repopulates from storage on a cache miss, so a killed+woken page rebuilds it on
+  first request. Not authoritative state.
+- `data-service.ts:165` `bytes` Map and `file-store.ts:56` `keep` Set are function-local
+  (per-call), not process state.
+- `router.ts:49` `PRIVILEGED_TYPES` is a static constant.
+- All listeners (`onCommand`, `onActionClicked`, `permissions.onAdded/onRemoved`, message
+  server) register at top level in `registerInvocations`/`index.ts`, so a woken page
+  re-arms them; `syncAutoRunRegistration` runs at every wake to recover registrations.
+- No `storage.session` dependence in background logic. Blob bytes live in IndexedDB.
+
+Conclusion: the design already held the invariant; the only addition needed was the
+wake-time registration reconcile (added in invoke.ts).
+
 ## Rung 0 review findings (fresh subagent, fixed before rung 1 commit)
 
 - **P0 check-local-only bypassable** → rewrote as 3 layers: URL-literal scan (exact allowlist,
